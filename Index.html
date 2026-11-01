@@ -1,0 +1,3459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS EDITOR // Monolith Code Workstation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=IBM+Plex+Mono:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Roboto+Mono:wght@400;700&family=Share+Tech+Mono&family=Source+Code+Pro:wght@400;700&family=Space+Mono:wght@400;700&family=Ubuntu+Mono:wght@400;700&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Chassis & UI Colors (Customizable via Theme Studio) */
+    --bg-chassis: #0c0d10;
+    --bg-panel: #16181d;
+    --bg-inset: #08090c;
+    --bg-tab: #1c1e24;
+    --border-hard: #2d3039;
+    --accent: #ff5500;
+    --text-main: #e4e4e8;
+    --text-muted: #787c87;
+
+    /* Syntax Token Colors */
+    --syn-kw: #ff6600;
+    --syn-str: #8fbc8f;
+    --syn-com: #5c6370;
+    --syn-num: #eab676;
+    --syn-fn: #e5c07b;
+    --syn-op: #989ca6;
+    --syn-tag: #e06c75;
+    --syn-attr: #d19a66;
+
+    /* Dynamic Font Scaling & Typography */
+    --editor-font-size: 14px;
+    --editor-line-height: 22px;
+    --editor-font-weight: 400;
+    --editor-font-family: 'JetBrains Mono', 'Cousine', monospace;
+    --font-ui: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border-radius: 0 !important;
+    user-select: none;
+  }
+
+  body, html {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background-color: var(--bg-chassis);
+    background-image: 
+      radial-gradient(#1d1f26 1px, transparent 1px),
+      radial-gradient(#14151a 1px, var(--bg-chassis) 1px);
+    background-size: 8px 8px;
+    background-position: 0 0, 4px 4px;
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* SUBTLE KINETIC SHADER CANVAS (NO SCANLINES) */
+  #shaderCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.25;
+  }
+
+  /* TOP HARDWARE MENUBAR - overflow: visible ensures dropdowns are never clipped */
+  .menubar {
+    height: 36px;
+    background: linear-gradient(180deg, #252830 0%, var(--bg-panel) 100%);
+    border-bottom: 2px solid #040406;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 3px 10px rgba(0,0,0,0.65);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    position: relative;
+    z-index: 500;
+    overflow: visible;
+  }
+
+  .brand {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 900;
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: #000;
+    padding: 4px 10px;
+    margin-right: 8px;
+    background: var(--accent);
+    border: 1px solid rgba(255,255,255,0.35);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.4), 0 0 10px rgba(0,0,0,0.5);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .menu-bar-left {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    flex-shrink: 0;
+  }
+
+  .menu-item {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    cursor: pointer;
+    color: var(--text-main);
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-right: 1px solid rgba(255,255,255,0.04);
+  }
+
+  .menu-item:hover, .menu-item.open {
+    background: var(--bg-inset);
+    color: var(--accent);
+  }
+
+  .dropdown {
+    display: none;
+    position: absolute;
+    top: 34px;
+    left: 0;
+    min-width: 265px;
+    background: var(--bg-panel);
+    border: 1px solid var(--accent);
+    box-shadow: 0 14px 32px rgba(0,0,0,0.95);
+    flex-direction: column;
+    padding: 5px 0;
+    z-index: 1000;
+  }
+
+  .menu-item.open .dropdown {
+    display: flex;
+  }
+
+  .dropdown-action {
+    padding: 8px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-main);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    text-transform: none;
+    white-space: nowrap;
+    gap: 16px;
+  }
+
+  .dropdown-action:hover {
+    background: var(--accent);
+    color: #000;
+    font-weight: 700;
+  }
+
+  .dropdown-action:hover .shortcut {
+    color: #111;
+  }
+
+  .shortcut {
+    font-family: monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .dropdown-sep {
+    height: 1px;
+    background: var(--border-hard);
+    margin: 4px 0;
+  }
+
+  /* RIGHT TOOLBAR CONTROLS */
+  .toolbar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    overflow-x: auto;
+    max-width: calc(100vw - 290px);
+    padding: 2px 0;
+  }
+
+  .toolbar-right::-webkit-scrollbar {
+    height: 0;
+    width: 0;
+  }
+
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-hard);
+    padding: 2px 5px;
+  }
+
+  .hw-label {
+    font-family: monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .hw-value {
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 700;
+    min-width: 32px;
+    text-align: center;
+  }
+
+  .hw-select, .hw-btn {
+    background: linear-gradient(180deg, #23262e 0%, #14161b 100%);
+    color: var(--text-main);
+    border: 1px solid var(--border-hard);
+    padding: 3px 7px;
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    outline: none;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+
+  .hw-btn-square {
+    padding: 2px 7px;
+    font-size: 13px;
+    line-height: 15px;
+  }
+
+  .hw-select:focus, .hw-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .hw-btn:active, .hw-btn.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+  }
+
+  /* MULTI-TAB BAR */
+  .tabbar {
+    height: 36px;
+    background: #090a0d;
+    border-bottom: 1px solid var(--border-hard);
+    display: flex;
+    align-items: flex-end;
+    padding: 0 8px;
+    overflow-x: auto;
+    gap: 4px;
+    position: relative;
+    z-index: 50;
+    box-shadow: inset 0 3px 6px rgba(0,0,0,0.7);
+  }
+
+  .tab {
+    height: 30px;
+    background: linear-gradient(180deg, var(--bg-tab) 0%, #121318 100%);
+    border: 1px solid var(--border-hard);
+    border-bottom: none;
+    padding: 0 10px 0 13px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-family: monospace;
+    font-size: 11px;
+    white-space: nowrap;
+    position: relative;
+  }
+
+  .tab:hover {
+    background: #23262f;
+    color: var(--text-main);
+  }
+
+  .tab.active {
+    background: linear-gradient(180deg, var(--bg-panel) 0%, var(--bg-inset) 100%);
+    color: var(--text-main);
+    border-top: 2px solid var(--accent);
+    height: 32px;
+    z-index: 2;
+    font-weight: 700;
+  }
+
+  .tab-dirty {
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+  }
+
+  .tab-close {
+    font-family: monospace;
+    font-size: 13px;
+    width: 17px;
+    height: 17px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+  }
+
+  .tab-close:hover {
+    background: var(--accent);
+    color: #000;
+    border-color: #000;
+  }
+
+  .tab-add {
+    height: 27px;
+    width: 27px;
+    margin-bottom: 2px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-hard);
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-family: monospace;
+    font-weight: bold;
+    font-size: 14px;
+  }
+
+  .tab-add:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* FIND & REPLACE DRAWER */
+  .find-bar {
+    display: none;
+    height: 38px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border-hard);
+    padding: 0 12px;
+    align-items: center;
+    gap: 8px;
+    z-index: 45;
+  }
+
+  .find-bar.open {
+    display: flex;
+  }
+
+  .hw-input {
+    background: var(--bg-inset);
+    border: 1px solid var(--border-hard);
+    color: var(--text-main);
+    font-family: monospace;
+    font-size: 12px;
+    padding: 4px 8px;
+    outline: none;
+    width: 180px;
+    user-select: text;
+  }
+
+  .hw-input:focus {
+    border-color: var(--accent);
+  }
+
+  /* THEME STUDIO DRAWER */
+  .theme-drawer {
+    display: none;
+    background: var(--bg-panel);
+    border-bottom: 2px solid var(--accent);
+    padding: 10px 14px;
+    z-index: 60;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.85);
+  }
+
+  .theme-drawer.open {
+    display: flex;
+  }
+
+  .theme-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-hard);
+    padding-bottom: 6px;
+  }
+
+  .theme-presets {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .color-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+    gap: 8px;
+  }
+
+  .color-cell {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-hard);
+    padding: 4px 8px;
+  }
+
+  .color-cell label {
+    font-family: monospace;
+    font-size: 10px;
+    color: var(--text-main);
+    cursor: pointer;
+  }
+
+  .color-cell input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    border: 1px solid var(--border-hard);
+    width: 28px;
+    height: 20px;
+    background: none;
+    cursor: pointer;
+  }
+
+  .color-cell input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+
+  .color-cell input[type="color"]::-webkit-color-swatch {
+    border: none;
+  }
+
+  /* WORKSPACE CONTAINER */
+  .workspace {
+    flex: 1;
+    display: flex;
+    position: relative;
+    background: var(--bg-inset);
+    overflow: hidden;
+    z-index: 10;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.75);
+  }
+
+  /* INTERACTIVE LINE + CODE FOLDING GUTTER */
+  .gutter {
+    min-width: 72px;
+    padding: 14px 6px 14px 6px;
+    background: linear-gradient(90deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.2) 100%);
+    border-right: 1px solid var(--border-hard);
+    color: var(--text-muted);
+    font-family: var(--editor-font-family);
+    font-size: var(--editor-font-size);
+    line-height: var(--editor-line-height);
+    font-weight: var(--editor-font-weight);
+    overflow: hidden;
+    user-select: none;
+    z-index: 5;
+  }
+
+  .gutter-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    height: var(--editor-line-height);
+    gap: 6px;
+  }
+
+  .ln-num {
+    text-align: right;
+  }
+
+  .fold-btn {
+    width: 15px;
+    height: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-family: monospace;
+    color: var(--text-muted);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-hard);
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .fold-btn:hover {
+    color: #000;
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .fold-btn.folded {
+    color: #000;
+    background: var(--accent);
+    border-color: #fff;
+    font-weight: bold;
+  }
+
+  .fold-spacer {
+    width: 15px;
+    height: 15px;
+    display: inline-block;
+  }
+
+  .editor-stack {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .editor-highlight,
+  .editor-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 14px 16px;
+    border: none;
+    font-family: var(--editor-font-family);
+    font-size: var(--editor-font-size);
+    line-height: var(--editor-line-height);
+    font-weight: var(--editor-font-weight);
+    font-variant-ligatures: none;
+    letter-spacing: 0px;
+    tab-size: 2;
+    white-space: pre;
+    overflow: auto;
+    word-wrap: normal;
+  }
+
+  .editor-highlight {
+    pointer-events: none;
+    color: var(--text-main);
+    z-index: 1;
+  }
+
+  .editor-input {
+    background: transparent;
+    color: transparent;
+    caret-color: var(--accent);
+    resize: none;
+    outline: none;
+    z-index: 2;
+    user-select: text;
+  }
+
+  .editor-input::selection {
+    background: rgba(255, 102, 0, 0.32);
+    color: transparent;
+  }
+
+  /* FOLDED PLACEHOLDER PILL STYLING IN SYNTAX LAYER */
+  .tok-fold {
+    background: rgba(255, 85, 0, 0.18);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+
+  /* CRISP SYNTAX TOKENS */
+  .tok-kw   { color: var(--syn-kw); }
+  .tok-str  { color: var(--syn-str); }
+  .tok-com  { color: var(--syn-com); font-style: italic; }
+  .tok-num  { color: var(--syn-num); }
+  .tok-fn   { color: var(--syn-fn); }
+  .tok-op   { color: var(--syn-op); }
+  .tok-tag  { color: var(--syn-tag); }
+  .tok-attr { color: var(--syn-attr); }
+
+  /* MONOLITH OUTLINE NAVIGATOR SIDEBAR */
+  .outline-sidebar {
+    width: 250px;
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border-hard);
+    display: flex;
+    flex-direction: column;
+    z-index: 20;
+    box-shadow: inset 4px 0 12px rgba(0,0,0,0.5);
+  }
+
+  .outline-sidebar.closed {
+    display: none;
+  }
+
+  .outline-header {
+    height: 30px;
+    background: #101216;
+    border-bottom: 1px solid var(--border-hard);
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .outline-actions {
+    display: flex;
+    gap: 4px;
+    padding: 6px 8px;
+    background: var(--bg-inset);
+    border-bottom: 1px solid var(--border-hard);
+  }
+
+  .outline-actions .hw-btn {
+    flex: 1;
+    font-size: 10px;
+    padding: 3px 4px;
+    text-align: center;
+  }
+
+  .outline-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+
+  .outline-item {
+    padding: 5px 10px;
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--text-main);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-left: 2px solid transparent;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .outline-item:hover {
+    background: var(--bg-inset);
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+
+  .outline-item.section-banner {
+    background: rgba(255, 85, 0, 0.08);
+    color: var(--accent);
+    font-weight: 700;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+
+  .outline-ln {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-left: 8px;
+  }
+
+  /* HARDWARE MODAL OVERLAY (FOR RENAME, NEW TAB, VFS MANAGER, RESET) */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.78);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-backdrop.open {
+    display: flex;
+  }
+
+  .modal-box {
+    width: 420px;
+    max-width: 92vw;
+    background: var(--bg-panel);
+    border: 2px solid var(--accent);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.95);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-titlebar {
+    height: 32px;
+    background: #0d0f13;
+    border-bottom: 1px solid var(--border-hard);
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .modal-body {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--text-main);
+  }
+
+  .modal-body .hw-input {
+    width: 100%;
+    padding: 7px 10px;
+    font-size: 13px;
+  }
+
+  .modal-footer {
+    padding: 10px 14px;
+    background: var(--bg-inset);
+    border-top: 1px solid var(--border-hard);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .vfs-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border-hard);
+    background: var(--bg-inset);
+  }
+
+  .vfs-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    cursor: pointer;
+  }
+
+  .vfs-row:hover {
+    background: rgba(255, 85, 0, 0.14);
+    color: var(--accent);
+  }
+
+  /* HARDWARE STATUS BAR */
+  .statusbar {
+    height: 28px;
+    background: linear-gradient(180deg, var(--bg-panel) 0%, #0b0c0f 100%);
+    border-top: 1px solid var(--border-hard);
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    gap: 20px;
+    position: relative;
+    z-index: 50;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-main);
+  }
+
+  .status-led {
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  .status-right {
+    margin-left: auto;
+    display: flex;
+    gap: 18px;
+  }
+
+  /* PAGE / RULER LINE LAYER */
+  .page-lines-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 3;
+    overflow: hidden;
+  }
+  .page-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border-hard);
+    opacity: 0.85;
+    box-shadow: none;
+  }
+  .page-line::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 6px,
+      var(--border-hard) 6px,
+      var(--border-hard) 12px
+    );
+    opacity: 0.9;
+  }
+  .page-line.primary {
+    width: 1px;
+    background: var(--accent);
+    opacity: 0.28;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .page-line.primary::after { display:none; }
+  .page-line.hidden { display: none; }
+
+  /* OVERLONG CHARS HIGHLIGHT (optional subtle) */
+  .editor-highlight .overlong {
+    background: rgba(255, 85, 0, 0.14);
+    outline: 1px solid rgba(255, 85, 0, 0.22);
+  }
+
+  /* SCROLLBAR STYLING */
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--bg-inset);
+    border-left: 1px solid var(--border-hard);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--bg-tab);
+    border: 1px solid var(--border-hard);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+  }
+</style>
+</head>
+<body>
+
+  <!-- KINETIC SHADER GRID CANVAS -->
+  <canvas id="shaderCanvas"></canvas>
+
+  <!-- TOP HARDWARE MENUBAR -->
+  <div class="menubar" id="menubar">
+    <div class="brand">NEXUS EDITOR</div>
+
+    <div class="menu-bar-left">
+      <div class="menu-item" data-menu="file">
+        File
+        <div class="dropdown">
+          <div class="dropdown-action" data-cmd="newFile"><span>New Tab...</span><span class="shortcut">Alt+N</span></div>
+          <div class="dropdown-action" data-cmd="openFile"><span>Open Disk File...</span><span class="shortcut">Ctrl+O</span></div>
+          <div class="dropdown-action" data-cmd="openVfsDialog"><span>Browser VFS Manager...</span><span class="shortcut">Alt+O</span></div>
+          <div class="dropdown-sep"></div>
+          <div class="dropdown-action" data-cmd="saveFile"><span>Save to Browser VFS</span><span class="shortcut">Ctrl+S</span></div>
+          <div class="dropdown-action" data-cmd="downloadFile"><span>Export / Download Active File</span><span class="shortcut">Ctrl+Shift+S</span></div>
+          <div class="dropdown-action" data-cmd="renameFile"><span>Rename Active Tab...</span><span class="shortcut">F2</span></div>
+          <div class="dropdown-sep"></div>
+          <div class="dropdown-action" data-cmd="closeTab"><span>Close Active Tab</span><span class="shortcut">Alt+W</span></div>
+          <div class="dropdown-action" data-cmd="closeAllTabs"><span>Reset Workspace...</span><span class="shortcut"></span></div>
+        </div>
+      </div>
+
+      <div class="menu-item" data-menu="edit">
+        Edit
+        <div class="dropdown">
+          <div class="dropdown-action" data-cmd="undo"><span>Undo</span><span class="shortcut">Ctrl+Z</span></div>
+          <div class="dropdown-action" data-cmd="redo"><span>Redo</span><span class="shortcut">Ctrl+Y</span></div>
+          <div class="dropdown-sep"></div>
+          <div class="dropdown-action" data-cmd="foldAtCursor"><span>Toggle Fold on Active Block</span><span class="shortcut">Alt+F</span></div>
+          <div class="dropdown-action" data-cmd="foldAllSections"><span>Fold Top-Level Sections</span><span class="shortcut">Alt+Shift+F</span></div>
+          <div class="dropdown-action" data-cmd="unfoldAll"><span>Unfold All Blocks</span><span class="shortcut">Alt+U</span></div>
+          <div class="dropdown-action" data-cmd="wrapRegion"><span>Wrap Selection in #region</span><span class="shortcut">Alt+R</span></div>
+          <div class="dropdown-sep"></div>
+          <div class="dropdown-action" data-cmd="cutLine"><span>Cut Selection / Line</span><span class="shortcut">Ctrl+X</span></div>
+          <div class="dropdown-action" data-cmd="copySelection"><span>Copy Selection</span><span class="shortcut">Ctrl+C</span></div>
+          <div class="dropdown-action" data-cmd="pasteClipboard"><span>Paste Clipboard</span><span class="shortcut">Ctrl+V</span></div>
+          <div class="dropdown-action" data-cmd="duplicateLine"><span>Duplicate Active Line</span><span class="shortcut">Ctrl+D</span></div>
+          <div class="dropdown-action" data-cmd="toggleComment"><span>Toggle Line Comment</span><span class="shortcut">Ctrl+/</span></div>
+          <div class="dropdown-sep"></div>
+          <div class="dropdown-action" data-cmd="toUpper"><span>MAKE ALL CAPS (UPPERCASE)</span><span class="shortcut">Ctrl+Shift+U</span></div>
+          <div class="dropdown-action" data-cmd="toLower"><span>make lowercase</span><span class="shortcut">Ctrl+Shift+L</span></div>
+          <div class="dropdown-sep"></div>
+          <div class="dropdown-action" data-cmd="findReplace"><span>Find &amp; Replace Bar</span><span class="shortcut">Ctrl+F</span></div>
+          <div class="dropdown-action" data-cmd="selectAll"><span>Select All</span><span class="shortcut">Ctrl+A</span></div>
+        </div>
+      </div>
+
+      <div class="menu-item" data-menu="theme">
+        Theme
+        <div class="dropdown">
+          <div class="dropdown-action" data-cmd="toggleThemeStudio"><span>Open Custom Theme Studio</span><span class="shortcut"></span></div>
+          <div class="dropdown-sep"></div>
+          <div class="dropdown-action" data-preset="nexusOrange"><span>Preset: Nexus Industrial Orange</span></div>
+          <div class="dropdown-action" data-preset="amberPhosphor"><span>Preset: Amber Terminal</span></div>
+          <div class="dropdown-action" data-preset="militaryOlive"><span>Preset: Tactical Olive Field</span></div>
+          <div class="dropdown-action" data-preset="crimsonForge"><span>Preset: Crimson Heavy Metal</span></div>
+          <div class="dropdown-action" data-preset="monoSteel"><span>Preset: High-Contrast Gunmetal</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOOLBAR RIGHT -->
+    <div class="toolbar-right">
+      <div class="control-group" title="Collapsible Section Controls">
+        <button class="hw-btn" id="btnFoldAll" title="Fold Top-Level Blocks (Alt+Shift+F)">FOLD ALL</button>
+        <button class="hw-btn" id="btnUnfoldAll" title="Unfold All Blocks (Alt+U)">UNFOLD</button>
+      </div>
+
+      <div class="control-group" title="Select Monospace Editor Font">
+        <span class="hw-label">FONT:</span>
+        <select class="hw-select" id="fontFamilySelect">
+          <option value="jetbrains">JetBrains Mono</option>
+          <option value="firacode">Fira Code</option>
+          <option value="sharetech">Share Tech Mono (Industrial)</option>
+          <option value="ibmplex">IBM Plex Mono</option>
+          <option value="spacemono">Space Mono</option>
+          <option value="ubuntu">Ubuntu Mono</option>
+          <option value="sourcecode">Source Code Pro</option>
+          <option value="vt323">VT323 (Retro Terminal)</option>
+          <option value="roboto">Roboto Mono (ChromeOS)</option>
+          <option value="cousine">Cousine (ChromeOS Crisp)</option>
+          <option value="courier">Courier New (Slab Serif)</option>
+          <option value="custom">Custom System Font...</option>
+        </select>
+        <button class="hw-btn" id="btnFontBold" title="Toggle Bold Font Weight">BOLD</button>
+      </div>
+
+      <div class="control-group" title="Adjust Editor Text Size (Ctrl - / Ctrl +)">
+        <button class="hw-btn hw-btn-square" id="btnFontMinus" title="Decrease Font Size (Ctrl+-)">-</button>
+        <span class="hw-value" id="fontSizeDisplay">14px</span>
+        <button class="hw-btn hw-btn-square" id="btnFontPlus" title="Increase Font Size (Ctrl+=)">+</button>
+      </div>
+
+      <div class="control-group" title="Character Encoding for Open/Save">
+        <span class="hw-label">ENC:</span>
+        <select class="hw-select" id="encodingSelect" title="Select character encoding for file open & export">
+          <option value="utf-8">UTF-8</option>
+          <option value="utf-8-bom">UTF-8 BOM</option>
+          <option value="utf-16le">UTF-16 LE</option>
+          <option value="utf-16be">UTF-16 BE</option>
+          <option value="windows-1252">WIN-1252</option>
+          <option value="iso-8859-1">ISO-8859-1</option>
+          <option value="ascii">ASCII</option>
+          <option value="utf-32">UTF-32 (auto)</option>
+        </select>
+      </div>
+
+      <div class="control-group" title="Vertical Ruler / Print Margin Guide">
+        <span class="hw-label">RULER:</span>
+        <select class="hw-select" id="rulerColSelect" style="min-width:62px" title="Choose print column(s)">
+          <option value="0">OFF</option>
+          <option value="80" selected>80</option>
+          <option value="100">100</option>
+          <option value="120">120</option>
+          <option value="80,100">80 + 100</option>
+          <option value="80,120">80 + 120</option>
+          <option value="100,120">100 + 120</option>
+          <option value="custom">CUSTOM…</option>
+        </select>
+        <input type="number" class="hw-input" id="rulerCustomInput" style="width:56px; display:none" min="10" max="400" placeholder="COL">
+        <button class="hw-btn" id="btnToggleRuler" title="Toggle ruler on/off">GUIDE</button>
+      </div>
+
+      <div class="control-group">
+        <span class="hw-label">SYNTAX:</span>
+        <select class="hw-select" id="grammarSelect">
+          <option value="javascript">JavaScript / ES6</option>
+          <option value="html">HTML5 / XML</option>
+          <option value="css">CSS3</option>
+          <option value="python">Python / Sh</option>
+          <option value="json">JSON Data</option>
+          <option value="markdown">Markdown</option>
+          <option value="plaintext">Plain Text</option>
+        </select>
+      </div>
+
+      <button class="hw-btn active" id="btnToggleOutline" title="Toggle Monolith Outline Navigator">[OUTLINE]</button>
+      <button class="hw-btn" id="btnThemeStudio">[THEME]</button>
+    </div>
+  </div>
+
+  <!-- CUSTOM THEME STUDIO DRAWER -->
+  <div class="theme-drawer" id="themeDrawer">
+    <div class="theme-header">
+      <div class="theme-presets">
+        <span class="hw-label" style="margin-right:6px;">PRESETS:</span>
+        <button class="hw-btn" data-preset-btn="nexusOrange">NEXUS ORANGE</button>
+        <button class="hw-btn" data-preset-btn="amberPhosphor">AMBER TERMINAL</button>
+        <button class="hw-btn" data-preset-btn="militaryOlive">TACTICAL OLIVE</button>
+        <button class="hw-btn" data-preset-btn="crimsonForge">CRIMSON FORGE</button>
+        <button class="hw-btn" data-preset-btn="monoSteel">GUNMETAL MONO</button>
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button class="hw-btn" id="btnResetTheme">RESET COLORS</button>
+        <button class="hw-btn" id="btnCloseTheme">[X] CLOSE</button>
+      </div>
+    </div>
+
+    <div class="color-grid" id="colorPickerGrid"></div>
+  </div>
+
+  <!-- MULTI-TAB CHASSIS BAR -->
+  <div class="tabbar" id="tabbar"></div>
+
+  <!-- FIND & REPLACE BAR -->
+  <div class="find-bar" id="findBar">
+    <span class="hw-label">FIND:</span>
+    <input type="text" class="hw-input" id="findInput" placeholder="Search string...">
+    <span class="hw-label">REPLACE:</span>
+    <input type="text" class="hw-input" id="replaceInput" placeholder="Replacement...">
+    <button class="hw-btn" id="btnFindNext">NEXT</button>
+    <button class="hw-btn" id="btnReplaceOne">REPLACE</button>
+    <button class="hw-btn" id="btnReplaceAll">REPLACE ALL</button>
+    <button class="hw-btn" id="btnUpperSelection">ALL CAPS</button>
+    <button class="hw-btn" id="btnLowerSelection">lowercase</button>
+    <button class="hw-btn" id="btnCloseFind" style="margin-left:auto;">[X]</button>
+  </div>
+
+  <!-- DUAL-LAYER SYNTAX WORKSPACE + MONOLITH NAVIGATOR -->
+  <div class="workspace">
+    <div class="gutter" id="gutter"></div>
+    <div class="editor-stack" id="editorStack">
+      <div class="page-lines-layer" id="pageLines"></div>
+      <pre class="editor-highlight" id="highlightLayer" aria-hidden="true"></pre>
+      <textarea class="editor-input" id="inputLayer" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+    </div>
+
+    <!-- MONOLITH SECTION NAVIGATOR SIDEBAR -->
+    <aside class="outline-sidebar" id="outlineSidebar">
+      <div class="outline-header">
+        <span>MONOLITH NAVIGATOR</span>
+        <span id="outlineCount">0 NODES</span>
+      </div>
+      <div class="outline-actions">
+        <button class="hw-btn" id="btnSideFoldAll" title="Collapse All Top-Level Sections">FOLD ALL</button>
+        <button class="hw-btn" id="btnSideUnfoldAll" title="Expand All Folded Sections">UNFOLD ALL</button>
+        <button class="hw-btn" id="btnSideWrapRegion" title="Wrap Selected Lines in #region">+REGION</button>
+      </div>
+      <div class="outline-list" id="outlineList"></div>
+    </aside>
+  </div>
+
+  <!-- HARDWARE STATUS BAR -->
+  <div class="statusbar">
+    <div class="status-pill">
+      <span class="status-led"></span>
+      <span id="statusMsg">NEXUS EDITOR READY // FILE MENU &amp; VFS ONLINE</span>
+    </div>
+    <div class="status-right">
+      <span id="statusEncoding">ENC: UTF-8</span>
+      <span id="statusRuler">RULER: 80</span>
+      <span id="statusFont">FONT: JETBRAINS</span>
+      <span id="statusFolds">0 FOLDED</span>
+      <span id="statusCursor">LN 1, COL 1</span>
+      <span id="statusStats">0 LINES // 0 BYTES</span>
+      <span id="statusGrammar">GRAMMAR: JAVASCRIPT</span>
+    </div>
+  </div>
+
+  <!-- HARDWARE MODAL DIALOG (RENAME / NEW FILE / VFS / RESET) -->
+  <div class="modal-backdrop" id="hwModal">
+    <div class="modal-box">
+      <div class="modal-titlebar">
+        <span id="modalTitle">SYSTEM DIALOG</span>
+        <button class="hw-btn" id="modalCloseBtn">[X]</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter"></div>
+    </div>
+  </div>
+
+  <!-- HIDDEN FILE INPUT -->
+  <input type="file" id="diskFileInput" style="display:none" multiple>
+
+<script>
+(() => {
+  /* =========================================================================
+   * 1. DOM REFERENCES
+   * ========================================================================= */
+  const tabbar = document.getElementById('tabbar');
+  const inputLayer = document.getElementById('inputLayer');
+  const highlightLayer = document.getElementById('highlightLayer');
+  const gutter = document.getElementById('gutter');
+  const grammarSelect = document.getElementById('grammarSelect');
+  const fontFamilySelect = document.getElementById('fontFamilySelect');
+  const btnFontBold = document.getElementById('btnFontBold');
+  const statusFont = document.getElementById('statusFont');
+  const statusMsg = document.getElementById('statusMsg');
+  const statusFolds = document.getElementById('statusFolds');
+  const statusCursor = document.getElementById('statusCursor');
+  const statusStats = document.getElementById('statusStats');
+  const statusGrammar = document.getElementById('statusGrammar');
+  const diskFileInput = document.getElementById('diskFileInput');
+  const findBar = document.getElementById('findBar');
+  const findInput = document.getElementById('findInput');
+  const replaceInput = document.getElementById('replaceInput');
+  const themeDrawer = document.getElementById('themeDrawer');
+  const outlineSidebar = document.getElementById('outlineSidebar');
+  const editorStack = document.getElementById('editorStack');
+  const pageLinesLayer = document.getElementById('pageLines');
+  const encodingSelect = document.getElementById('encodingSelect');
+  const rulerColSelect = document.getElementById('rulerColSelect');
+  const rulerCustomInput = document.getElementById('rulerCustomInput');
+  const btnToggleRuler = document.getElementById('btnToggleRuler');
+  const statusEncoding = document.getElementById('statusEncoding');
+  const statusRuler = document.getElementById('statusRuler');
+
+  const hwModal = document.getElementById('hwModal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const modalFooter = document.getElementById('modalFooter');
+  const modalCloseBtn = document.getElementById('modalCloseBtn');
+
+  /* =========================================================================
+   * 2. HARDWARE MODAL CONTROLLER (REPLACES BLOCKED PROMPT/CONFIRM)
+   * ========================================================================= */
+  function closeModal() {
+    hwModal.classList.remove('open');
+    modalBody.innerHTML = '';
+    modalFooter.innerHTML = '';
+    inputLayer.focus();
+  }
+
+  modalCloseBtn.onclick = closeModal;
+  hwModal.addEventListener('click', (e) => {
+    if (e.target === hwModal) closeModal();
+  });
+
+  function openInputModal({ title, label, defaultValue = '', confirmText = 'CONFIRM', onConfirm }) {
+    modalTitle.textContent = title;
+    modalBody.innerHTML = '';
+    modalFooter.innerHTML = '';
+
+    const lbl = document.createElement('div');
+    lbl.textContent = label;
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'hw-input';
+    inp.value = defaultValue;
+
+    modalBody.appendChild(lbl);
+    modalBody.appendChild(inp);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'hw-btn';
+    cancelBtn.textContent = 'CANCEL';
+    cancelBtn.onclick = closeModal;
+
+    const okBtn = document.createElement('button');
+    okBtn.className = 'hw-btn active';
+    okBtn.textContent = confirmText;
+    const submit = () => {
+      const val = inp.value.trim();
+      closeModal();
+      if (val) onConfirm(val);
+    };
+    okBtn.onclick = submit;
+
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeModal();
+      }
+    });
+
+    modalFooter.appendChild(cancelBtn);
+    modalFooter.appendChild(okBtn);
+    hwModal.classList.add('open');
+    setTimeout(() => {
+      inp.focus();
+      inp.select();
+    }, 20);
+  }
+
+  function openConfirmModal({ title, message, confirmText = 'CONFIRM', onConfirm }) {
+    modalTitle.textContent = title;
+    modalBody.innerHTML = '';
+    modalFooter.innerHTML = '';
+
+    const msg = document.createElement('div');
+    msg.textContent = message;
+    modalBody.appendChild(msg);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'hw-btn';
+    cancelBtn.textContent = 'CANCEL';
+    cancelBtn.onclick = closeModal;
+
+    const okBtn = document.createElement('button');
+    okBtn.className = 'hw-btn active';
+    okBtn.textContent = confirmText;
+    okBtn.onclick = () => {
+      closeModal();
+      onConfirm();
+    };
+
+    modalFooter.appendChild(cancelBtn);
+    modalFooter.appendChild(okBtn);
+    hwModal.classList.add('open');
+  }
+
+
+  /* =========================================================================
+   * 2.5 CHARACTER ENCODING & VERTICAL RULER / PAGE LINE ENGINE
+   * ========================================================================= */
+  const ENCODING_STORAGE_KEY = 'NEXUS_EDITOR_ENCODING_V5';
+  const RULER_COL_STORAGE_KEY = 'NEXUS_EDITOR_RULER_COL_V5';
+  const RULER_ENABLED_STORAGE_KEY = 'NEXUS_EDITOR_RULER_ENABLED_V5';
+
+  let currentEncoding = 'utf-8';
+  let rulerEnabled = true;
+  let rulerCols = [80]; // array of ints
+  let charWidth = 8.4;
+  let charWidthCanvas = null;
+
+  // ----- Encoding helpers -----
+  function listSupportedEncodings() {
+    return ['utf-8','utf-8-bom','utf-16le','utf-16be','windows-1252','iso-8859-1','ascii','utf-32'];
+  }
+
+  function normalizeEncodingLabel(label) {
+    const l = String(label||'').toLowerCase();
+    if (l.includes('utf-8-bom') || l==='utf8-bom') return 'utf-8-bom';
+    if (l==='utf8' || l==='utf-8') return 'utf-8';
+    if (l==='utf-16le' || l==='utf16le') return 'utf-16le';
+    if (l==='utf-16be' || l==='utf16be') return 'utf-16be';
+    if (l==='windows-1252' || l==='win1252' || l==='windows1252') return 'windows-1252';
+    if (l==='iso-8859-1' || l==='iso88591' || l==='latin1') return 'iso-8859-1';
+    if (l==='ascii') return 'ascii';
+    if (l==='utf-32' || l==='utf32') return 'utf-32';
+    return 'utf-8';
+  }
+
+  function detectBOM(buffer) {
+    const u8 = new Uint8Array(buffer);
+    if (u8.length >= 3 && u8[0]===0xEF && u8[1]===0xBB && u8[2]===0xBF) return { enc:'utf-8-bom', offset:3 };
+    if (u8.length >= 2 && u8[0]===0xFF && u8[1]===0xFE) {
+      // could be utf-16le or utf-32le, check further
+      if (u8.length>=4 && u8[2]===0x00 && u8[3]===0x00) return { enc:'utf-32', offset:4 };
+      return { enc:'utf-16le', offset:2 };
+    }
+    if (u8.length >= 2 && u8[0]===0xFE && u8[1]===0xFF) return { enc:'utf-16be', offset:2 };
+    if (u8.length >=4 && u8[0]===0x00 && u8[1]===0x00 && u8[2]===0xFE && u8[3]===0xFF) return { enc:'utf-32', offset:4 };
+    if (u8.length >=4 && u8[0]===0xFF && u8[1]===0xFE && u8[2]===0x00 && u8[3]===0x00) return { enc:'utf-32', offset:4 };
+    return { enc:null, offset:0 };
+  }
+
+  function decodeBuffer(buffer, preferredEnc) {
+    try {
+      const bom = detectBOM(buffer);
+      let encToUse = bom.enc || preferredEnc || currentEncoding;
+      let offset = bom.offset || 0;
+      let slice = buffer.slice(offset);
+
+      // Normalize to TextDecoder labels where possible
+      if (encToUse === 'utf-8-bom') encToUse = 'utf-8';
+      if (encToUse === 'ascii') encToUse = 'windows-1252'; // ascii subset
+      if (encToUse === 'utf-32') {
+        // manual utf-32 decode fallback
+        const view = new DataView(slice);
+        const isLE = bom.enc ? (new Uint8Array(buffer)[0]===0xFF) : true;
+        let str = '';
+        for (let i=0;i+3<view.byteLength;i+=4) {
+          const cp = isLE ? view.getUint32(i,true) : view.getUint32(i,false);
+          if (cp<=0xFFFF) str+=String.fromCharCode(cp);
+          else {
+            // surrogate pair
+            const high = Math.floor((cp-0x10000)/0x400)+0xD800;
+            const low = ((cp-0x10000)%0x400)+0xDC00;
+            str+=String.fromCharCode(high, low);
+          }
+        }
+        return { text: str, detected: bom.enc || encToUse };
+      }
+
+      // Try native TextDecoder
+      const decoder = new TextDecoder(encToUse, { fatal:false });
+      const text = decoder.decode(slice);
+      return { text, detected: bom.enc || encToUse };
+    } catch (e) {
+      try {
+        const decoder = new TextDecoder('utf-8', { fatal:false });
+        return { text: decoder.decode(buffer), detected:'utf-8' };
+      } catch (e2) {
+        return { text: '', detected:'utf-8' };
+      }
+    }
+  }
+
+  function encodeStringToBytes(str, enc) {
+    const norm = normalizeEncodingLabel(enc);
+    if (norm === 'utf-8') {
+      return new TextEncoder().encode(str);
+    }
+    if (norm === 'utf-8-bom') {
+      const utf8 = new TextEncoder().encode(str);
+      const out = new Uint8Array(utf8.length+3);
+      out[0]=0xEF; out[1]=0xBB; out[2]=0xBF;
+      out.set(utf8,3);
+      return out;
+    }
+    if (norm === 'utf-16le') {
+      const out = new Uint8Array(str.length*2);
+      for (let i=0;i<str.length;i++) {
+        const c = str.charCodeAt(i);
+        out[i*2]=c & 0xFF;
+        out[i*2+1]=(c>>8) & 0xFF;
+      }
+      return out;
+    }
+    if (norm === 'utf-16be') {
+      const out = new Uint8Array(str.length*2);
+      for (let i=0;i<str.length;i++) {
+        const c = str.charCodeAt(i);
+        out[i*2]=(c>>8) & 0xFF;
+        out[i*2+1]=c & 0xFF;
+      }
+      return out;
+    }
+    if (norm === 'windows-1252' || norm === 'iso-8859-1' || norm === 'ascii') {
+      const out = new Uint8Array(str.length);
+      for (let i=0;i<str.length;i++) {
+        let code = str.charCodeAt(i);
+        if (code>255) code = 63; // '?'
+        out[i]=code & 0xFF;
+      }
+      return out;
+    }
+    if (norm === 'utf-32') {
+      const out = new Uint8Array(str.length*4);
+      for (let i=0;i<str.length;i++) {
+        const c = str.charCodeAt(i);
+        out[i*4]=c & 0xFF;
+        out[i*4+1]=(c>>8) & 0xFF;
+        out[i*4+2]=0;
+        out[i*4+3]=0;
+      }
+      return out;
+    }
+    return new TextEncoder().encode(str);
+  }
+
+  function applyEncoding(enc, persist=true) {
+    const norm = normalizeEncodingLabel(enc);
+    currentEncoding = norm;
+    if (encodingSelect) encodingSelect.value = norm;
+    if (statusEncoding) statusEncoding.textContent = 'ENC: ' + norm.toUpperCase();
+    if (persist) localStorage.setItem(ENCODING_STORAGE_KEY, norm);
+    const tab = getActiveTab ? getActiveTab() : null;
+    if (tab) tab.encoding = norm;
+  }
+
+  // ----- Ruler helpers -----
+  function parseRulerValue(val) {
+    if (!val) return [80];
+    if (val === '0' || val === 0) return [];
+    if (val === 'custom') {
+      const c = parseInt(rulerCustomInput ? rulerCustomInput.value : 80,10);
+      return [isNaN(c)?80:c];
+    }
+    // allow comma separated like "80,100"
+    return String(val).split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n)&&n>0);
+  }
+
+  function recalcCharWidth() {
+    try {
+      if (!charWidthCanvas) {
+        charWidthCanvas = document.createElement('canvas');
+      }
+      const ctx = charWidthCanvas.getContext('2d');
+      const style = getComputedStyle(inputLayer);
+      const weight = style.fontWeight || '400';
+      const size = style.fontSize || '14px';
+      const family = style.fontFamily || 'monospace';
+      ctx.font = `${weight} ${size} ${family}`;
+      const m = ctx.measureText('M'.repeat(10));
+      let w = m.width / 10;
+      if (!w || w < 2) {
+        // fallback based on font size
+        const fs = parseFloat(size) || 14;
+        w = fs * 0.6;
+      }
+      charWidth = w;
+    } catch (e) {
+      charWidth = (parseFloat(getComputedStyle(inputLayer).fontSize)||14) * 0.6;
+    }
+  }
+
+  function updatePageLines() {
+    if (!pageLinesLayer) return;
+    recalcCharWidth();
+    pageLinesLayer.innerHTML = '';
+    if (!rulerEnabled || rulerCols.length===0) {
+      pageLinesLayer.style.display = 'none';
+      if (statusRuler) statusRuler.textContent = 'RULER: OFF';
+      if (btnToggleRuler) btnToggleRuler.classList.remove('active');
+      return;
+    }
+    pageLinesLayer.style.display = 'block';
+    const scrollLeft = inputLayer ? inputLayer.scrollLeft : 0;
+    const baseLeft = 16; // padding-left from .editor-highlight/.editor-input
+    rulerCols.forEach((col, idx) => {
+      const lineEl = document.createElement('div');
+      lineEl.className = 'page-line' + (idx===0 ? ' primary' : '');
+      lineEl.dataset.col = String(col);
+      lineEl.title = `Column ${col}`;
+      const leftPos = Math.round(baseLeft + charWidth * col - scrollLeft);
+      lineEl.style.left = leftPos + 'px';
+      pageLinesLayer.appendChild(lineEl);
+    });
+    if (statusRuler) statusRuler.textContent = 'RULER: ' + rulerCols.join('+');
+    if (btnToggleRuler) btnToggleRuler.classList.toggle('active', rulerEnabled);
+  }
+
+  function applyRulerSettings(rawVal, enabled, persist=true) {
+    if (typeof enabled === 'boolean') rulerEnabled = enabled;
+    if (rawVal !== undefined && rawVal !== null) {
+      if (rawVal === 'custom') {
+        const customVal = parseInt(rulerCustomInput ? rulerCustomInput.value : 80,10);
+        rulerCols = [isNaN(customVal)?80:customVal];
+      } else {
+        rulerCols = parseRulerValue(rawVal);
+      }
+    }
+    if (rulerCols.length===0) rulerEnabled = false;
+    if (rulerColSelect && rawVal !== undefined && rawVal !== 'custom') {
+      // keep select synced if not custom
+      const asString = Array.isArray(rulerCols) ? (rulerCols.length===0 ? '0' : rulerCols.join(',')) : String(rawVal);
+      // try to find matching option, else set to custom
+      const hasOption = Array.from(rulerColSelect.options).some(o=>o.value===asString);
+      if (!hasOption && rulerCols.length===1) {
+        // if single value not in list, show custom input
+        if (rulerCustomInput) {
+          rulerCustomInput.style.display = '';
+          rulerCustomInput.value = String(rulerCols[0]);
+          rulerColSelect.value = 'custom';
+        }
+      } else {
+        if (rulerCustomInput && rawVal!=='custom') rulerCustomInput.style.display = 'none';
+        if (hasOption) rulerColSelect.value = asString;
+      }
+    }
+    if (persist) {
+      localStorage.setItem(RULER_COL_STORAGE_KEY, rulerCols.join(','));
+      localStorage.setItem(RULER_ENABLED_STORAGE_KEY, rulerEnabled ? '1' : '0');
+    }
+    updatePageLines();
+    // flashStatus only if called via UI
+  }
+
+  function toggleRuler() {
+    rulerEnabled = !rulerEnabled;
+    if (rulerEnabled && rulerCols.length===0) rulerCols = [80];
+    localStorage.setItem(RULER_ENABLED_STORAGE_KEY, rulerEnabled ? '1' : '0');
+    localStorage.setItem(RULER_COL_STORAGE_KEY, rulerCols.join(','));
+    updatePageLines();
+    if (typeof flashStatus === 'function') {
+      flashStatus(rulerEnabled ? `RULER ENABLED AT ${rulerCols.join('+')}` : 'RULER DISABLED');
+    }
+  }
+
+  // Init from storage
+  (function initEncRulerFromStorage(){
+    try {
+      const savedEnc = localStorage.getItem(ENCODING_STORAGE_KEY);
+      if (savedEnc) currentEncoding = normalizeEncodingLabel(savedEnc);
+    } catch(e){}
+    try {
+      const savedCols = localStorage.getItem(RULER_COL_STORAGE_KEY);
+      if (savedCols) {
+        const parsed = parseRulerValue(savedCols);
+        if (parsed.length>0) rulerCols = parsed;
+      }
+      const savedEn = localStorage.getItem(RULER_ENABLED_STORAGE_KEY);
+      if (savedEn !== null) rulerEnabled = savedEn === '1';
+    } catch(e){}
+  })();
+
+
+  /* =========================================================================
+   * 3. CUSTOM THEME ENGINE & COLOR STUDIO
+   * ========================================================================= */
+  const THEME_STORAGE_KEY = 'NEXUS_EDITOR_CUSTOM_THEME_V5';
+  const FONT_STORAGE_KEY = 'NEXUS_EDITOR_FONT_SIZE_V5';
+  const FONT_FAMILY_STORAGE_KEY = 'NEXUS_EDITOR_FONT_FAMILY_V5';
+  const FONT_WEIGHT_STORAGE_KEY = 'NEXUS_EDITOR_FONT_WEIGHT_V5';
+
+  const COLOR_SCHEMA = [
+    { key: '--accent',      label: 'Accent / Caret' },
+    { key: '--bg-inset',    label: 'Editor BG' },
+    { key: '--bg-panel',    label: 'Panel Chassis' },
+    { key: '--bg-tab',      label: 'Tab Surface' },
+    { key: '--border-hard', label: 'Hard Borders' },
+    { key: '--text-main',   label: 'Main Text' },
+    { key: '--text-muted',  label: 'Gutter / Muted' },
+    { key: '--syn-kw',      label: 'Keywords' },
+    { key: '--syn-fn',      label: 'Functions' },
+    { key: '--syn-str',     label: 'Strings' },
+    { key: '--syn-num',     label: 'Numbers' },
+    { key: '--syn-com',     label: 'Comments' },
+    { key: '--syn-op',      label: 'Operators' },
+    { key: '--syn-tag',     label: 'HTML Tags' }
+  ];
+
+  const THEME_PRESETS = {
+    nexusOrange: {
+      '--accent': '#ff5500',
+      '--bg-inset': '#08090c',
+      '--bg-panel': '#16181d',
+      '--bg-tab': '#1c1e24',
+      '--border-hard': '#2d3039',
+      '--text-main': '#e4e4e8',
+      '--text-muted': '#787c87',
+      '--syn-kw': '#ff6600',
+      '--syn-fn': '#e5c07b',
+      '--syn-str': '#8fbc8f',
+      '--syn-num': '#eab676',
+      '--syn-com': '#5c6370',
+      '--syn-op': '#989ca6',
+      '--syn-tag': '#e06c75'
+    },
+    amberPhosphor: {
+      '--accent': '#ffb000',
+      '--bg-inset': '#0a0804',
+      '--bg-panel': '#17130a',
+      '--bg-tab': '#211b0e',
+      '--border-hard': '#3d3118',
+      '--text-main': '#ffd479',
+      '--text-muted': '#8c6f32',
+      '--syn-kw': '#ffb000',
+      '--syn-fn': '#ffe082',
+      '--syn-str': '#c5e1a5',
+      '--syn-num': '#ff8f00',
+      '--syn-com': '#6e5828',
+      '--syn-op': '#d4a338',
+      '--syn-tag': '#ff6f00'
+    },
+    militaryOlive: {
+      '--accent': '#99b83c',
+      '--bg-inset': '#0b0d09',
+      '--bg-panel': '#161a13',
+      '--bg-tab': '#1e241a',
+      '--border-hard': '#313a2b',
+      '--text-main': '#dce3d5',
+      '--text-muted': '#76826b',
+      '--syn-kw': '#99b83c',
+      '--syn-fn': '#d4c96e',
+      '--syn-str': '#8ab893',
+      '--syn-num': '#d99b52',
+      '--syn-com': '#596350',
+      '--syn-op': '#9aa68e',
+      '--syn-tag': '#c97a63'
+    },
+    crimsonForge: {
+      '--accent': '#ff2a4b',
+      '--bg-inset': '#0b0708',
+      '--bg-panel': '#1a1113',
+      '--bg-tab': '#24171a',
+      '--border-hard': '#3d262b',
+      '--text-main': '#ece0e2',
+      '--text-muted': '#8a6d72',
+      '--syn-kw': '#ff2a4b',
+      '--syn-fn': '#ff9e64',
+      '--syn-str': '#9ece6a',
+      '--syn-num': '#e0af68',
+      '--syn-com': '#664e53',
+      '--syn-op': '#b8969c',
+      '--syn-tag': '#f7768e'
+    },
+    monoSteel: {
+      '--accent': '#d8dee9',
+      '--bg-inset': '#090a0c',
+      '--bg-panel': '#141619',
+      '--bg-tab': '#1c1f24',
+      '--border-hard': '#333842',
+      '--text-main': '#eceff4',
+      '--text-muted': '#6c7380',
+      '--syn-kw': '#ffffff',
+      '--syn-fn': '#d8dee9',
+      '--syn-str': '#a3be8c',
+      '--syn-num': '#b48ead',
+      '--syn-com': '#545a66',
+      '--syn-op': '#8fbcbb',
+      '--syn-tag': '#bf616a'
+    }
+  };
+
+  let activeTheme = { ...THEME_PRESETS.nexusOrange };
+
+  function applyThemeObject(themeObj, persist = true) {
+    activeTheme = { ...activeTheme, ...themeObj };
+    const root = document.documentElement;
+    Object.entries(activeTheme).forEach(([k, v]) => {
+      root.style.setProperty(k, v);
+    });
+    syncColorInputs();
+    if (persist) {
+      localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(activeTheme));
+    }
+  }
+
+  function buildColorPickerGrid() {
+    const grid = document.getElementById('colorPickerGrid');
+    grid.innerHTML = '';
+    COLOR_SCHEMA.forEach(item => {
+      const cell = document.createElement('div');
+      cell.className = 'color-cell';
+
+      const lbl = document.createElement('label');
+      lbl.textContent = item.label;
+      lbl.setAttribute('for', 'picker-' + item.key);
+
+      const input = document.createElement('input');
+      input.type = 'color';
+      input.id = 'picker-' + item.key;
+      input.dataset.varKey = item.key;
+      input.value = activeTheme[item.key] || '#ff5500';
+
+      input.addEventListener('input', (e) => {
+        const key = e.target.dataset.varKey;
+        const val = e.target.value;
+        activeTheme[key] = val;
+        document.documentElement.style.setProperty(key, val);
+        localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(activeTheme));
+      });
+
+      cell.appendChild(lbl);
+      cell.appendChild(input);
+      grid.appendChild(cell);
+    });
+  }
+
+  function syncColorInputs() {
+    COLOR_SCHEMA.forEach(item => {
+      const el = document.getElementById('picker-' + item.key);
+      if (el && activeTheme[item.key]) {
+        el.value = activeTheme[item.key];
+      }
+    });
+  }
+
+  /* =========================================================================
+   * 4. FONT FAMILY PICKER, BOLD WEIGHT TOGGLE & SIZE SCALER
+   * ========================================================================= */
+  const FONT_STACKS = {
+    jetbrains:  "'JetBrains Mono', monospace",
+    firacode:   "'Fira Code', monospace",
+    sharetech:  "'Share Tech Mono', monospace",
+    ibmplex:    "'IBM Plex Mono', monospace",
+    spacemono:  "'Space Mono', monospace",
+    ubuntu:     "'Ubuntu Mono', monospace",
+    sourcecode: "'Source Code Pro', monospace",
+    vt323:      "'VT323', monospace",
+    roboto:     "'Roboto Mono', 'Noto Sans Mono', monospace",
+    cousine:    "'Cousine', 'Liberation Mono', monospace",
+    courier:    "'Courier New', Courier, monospace"
+  };
+
+  let currentFontSize = 14;
+  let currentFontKey = 'jetbrains';
+  let isFontBold = false;
+  const MIN_FONT_SIZE = 10;
+  const MAX_FONT_SIZE = 32;
+
+  function applyFontFamily(key, customFontName = null) {
+    if (key === 'custom' && !customFontName) {
+      openInputModal({
+        title: 'CUSTOM SYSTEM FONT',
+        label: 'Enter installed monospace font family name:',
+        defaultValue: 'Noto Sans Mono',
+        confirmText: 'APPLY FONT',
+        onConfirm: (entered) => {
+          const clean = entered.replace(/['"]/g, '');
+          applyFontFamily('custom', clean);
+        }
+      });
+      return;
+    }
+
+    let stack = FONT_STACKS[key] || FONT_STACKS.jetbrains;
+    let displayLabel = key.toUpperCase();
+
+    if (key === 'custom' && customFontName) {
+      const clean = customFontName.trim().replace(/['"]/g, '');
+      stack = `'${clean}', monospace`;
+      displayLabel = clean.toUpperCase();
+      localStorage.setItem(FONT_FAMILY_STORAGE_KEY, JSON.stringify({ key: 'custom', custom: clean }));
+    } else {
+      localStorage.setItem(FONT_FAMILY_STORAGE_KEY, JSON.stringify({ key }));
+    }
+
+    currentFontKey = key;
+    fontFamilySelect.value = key;
+
+    document.documentElement.style.setProperty('--editor-font-family', stack);
+    inputLayer.style.fontFamily = stack;
+    highlightLayer.style.fontFamily = stack;
+    gutter.style.fontFamily = stack;
+
+    statusFont.textContent = `FONT: ${displayLabel}`;
+    syncScroll();
+    if (typeof updatePageLines === 'function') updatePageLines();
+  }
+
+  function applyFontWeight(bold) {
+    isFontBold = Boolean(bold);
+    const weightVal = isFontBold ? '700' : '400';
+    document.documentElement.style.setProperty('--editor-font-weight', weightVal);
+    inputLayer.style.fontWeight = weightVal;
+    highlightLayer.style.fontWeight = weightVal;
+    gutter.style.fontWeight = weightVal;
+
+    btnFontBold.classList.toggle('active', isFontBold);
+    localStorage.setItem(FONT_WEIGHT_STORAGE_KEY, isFontBold ? '1' : '0');
+    syncScroll();
+    if (typeof updatePageLines === 'function') updatePageLines();
+  }
+
+  function applyFontSize(sizePx) {
+    currentFontSize = Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, sizePx));
+    const lineHeightPx = Math.round(currentFontSize * 1.55);
+    const root = document.documentElement;
+    root.style.setProperty('--editor-font-size', currentFontSize + 'px');
+    root.style.setProperty('--editor-line-height', lineHeightPx + 'px');
+
+    inputLayer.style.fontSize = currentFontSize + 'px';
+    inputLayer.style.lineHeight = lineHeightPx + 'px';
+    highlightLayer.style.fontSize = currentFontSize + 'px';
+    highlightLayer.style.lineHeight = lineHeightPx + 'px';
+    gutter.style.fontSize = currentFontSize + 'px';
+    gutter.style.lineHeight = lineHeightPx + 'px';
+
+    document.getElementById('fontSizeDisplay').textContent = currentFontSize + 'px';
+    localStorage.setItem(FONT_STORAGE_KEY, String(currentFontSize));
+    syncScroll();
+    if (typeof updatePageLines === 'function') updatePageLines();
+  }
+
+  /* =========================================================================
+   * 5. SUBTLE KINETIC SHADER CANVAS
+   * ========================================================================= */
+  const canvas = document.getElementById('shaderCanvas');
+  const ctx = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  let shaderTime = 0;
+  function renderShader() {
+    shaderTime += 0.012;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const accentHex = activeTheme['--accent'] || '#ff5500';
+    ctx.strokeStyle = accentHex;
+    ctx.globalAlpha = 0.08;
+    ctx.lineWidth = 1;
+
+    const gridSize = 40;
+    ctx.beginPath();
+    for (let x = 0; x < canvas.width; x += gridSize) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+    }
+    for (let y = 0; y < canvas.height; y += gridSize) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+    }
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.22;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let x = 0; x < canvas.width; x += 5) {
+      const y = (canvas.height * 0.8) + Math.sin(x * 0.006 + shaderTime) * 28 + Math.cos(x * 0.002 - shaderTime * 0.6) * 14;
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1.0;
+
+    requestAnimationFrame(renderShader);
+  }
+  renderShader();
+
+  /* =========================================================================
+   * 6. LEXICAL GRAMMAR TOKENIZER + FOLD TOKEN HIGHLIGHTER
+   * ========================================================================= */
+  const GRAMMARS = {
+    javascript: {
+      commentPrefix: '// ',
+      regex: /(\/\* ⊞ FOLDED \[#[0-9]+\] [^\n]*?\*\/)|(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|\b(const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|class|extends|new|this|super|import|export|from|default|async|await|try|catch|finally|throw|typeof|instanceof|in|of|void|delete|true|false|null|undefined|NaN|Infinity)\b|\b(0x[0-9a-fA-F]+|\d+(?:\.\d+)?)\b|\b([a-zA-Z_$][\w$]*)(?=\s*\()|([+\-*/%=&|<>!^~?:]+|[{}()[\];.,])/g,
+      map: ['fold', 'com', 'str', 'kw', 'num', 'fn', 'op']
+    },
+    html: {
+      commentPrefix: '<!-- ',
+      regex: /(\/\* ⊞ FOLDED \[#[0-9]+\] [^\n]*?\*\/)|(<!--[\s\S]*?-->)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(<\/?[a-zA-Z0-9\-]+|\/?>)|\b([a-zA-Z\-:]+)(?=\s*=)/g,
+      map: ['fold', 'com', 'str', 'tag', 'attr']
+    },
+    css: {
+      commentPrefix: '/* ',
+      regex: /(\/\* ⊞ FOLDED \[#[0-9]+\] [^\n]*?\*\/)|(\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(@[a-zA-Z\-]+|\b(?:!important|px|em|rem|vh|vw|deg|s|ms|fr)\b)|(\b\d+(?:\.\d+)?%?|\b#[0-9a-fA-F]{3,8}\b)|([a-zA-Z\-]+)(?=\s*:)|([.#]?[a-zA-Z0-9_\-:]+)(?=\s*\{)/g,
+      map: ['fold', 'com', 'str', 'kw', 'num', 'attr', 'fn']
+    },
+    python: {
+      commentPrefix: '# ',
+      regex: /(\/\* ⊞ FOLDED \[#[0-9]+\] [^\n]*?\*\/)|(#[^\n]*)|("""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|\b(def|class|return|if|elif|else|for|while|break|continue|pass|import|from|as|try|except|finally|raise|with|yield|lambda|and|or|not|in|is|None|True|False|global|nonlocal|async|await)\b|\b(\d+(?:\.\d+)?)\b|\b([a-zA-Z_]\w*)(?=\s*\()|([+\-*/%=&|<>!^~@:]+)/g,
+      map: ['fold', 'com', 'str', 'kw', 'num', 'fn', 'op']
+    },
+    json: {
+      commentPrefix: '// ',
+      regex: /(\/\* ⊞ FOLDED \[#[0-9]+\] [^\n]*?\*\/)|("(?:\\.|[^"\\])*")(?=\s*:)|("(?:\\.|[^"\\])*")|\b(true|false|null)\b|\b(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b|([{}[\]:,])/g,
+      map: ['fold', 'attr', 'str', 'kw', 'num', 'op']
+    },
+    markdown: {
+      commentPrefix: '> ',
+      regex: /(\/\* ⊞ FOLDED \[#[0-9]+\] [^\n]*?\*\/)|(^#{1,6}\s[^\n]*)|(```[\s\S]*?```|`[^`\n]+`)|(\*\*[^*\n]+\*\*|__[^_\n]+__)|(\*[^*\n]+\*|_[^_\n]+_)|(\[[^\]]+\]\([^)]+\))/gm,
+      map: ['fold', 'kw', 'str', 'fn', 'attr', 'tag']
+    },
+    plaintext: {
+      commentPrefix: '# ',
+      regex: /(\/\* ⊞ FOLDED \[#[0-9]+\] [^\n]*?\*\/)/g,
+      map: ['fold']
+    }
+  };
+
+  function escapeHTML(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function highlightSyntax(code, grammarKey) {
+    const grammar = GRAMMARS[grammarKey] || GRAMMARS.plaintext;
+    if (!grammar.regex) return escapeHTML(code) + '\n';
+
+    let out = '';
+    let lastIndex = 0;
+    const regex = new RegExp(grammar.regex.source, grammar.regex.flags);
+    let match;
+
+    while ((match = regex.exec(code)) !== null) {
+      if (match.index > lastIndex) {
+        out += escapeHTML(code.slice(lastIndex, match.index));
+      }
+
+      let tokenClass = '';
+      for (let i = 1; i < match.length; i++) {
+        if (match[i] !== undefined) {
+          tokenClass = grammar.map[i - 1];
+          break;
+        }
+      }
+
+      if (tokenClass) {
+        out += `<span class="tok-${tokenClass}">${escapeHTML(match[0])}</span>`;
+      } else {
+        out += escapeHTML(match[0]);
+      }
+
+      lastIndex = regex.lastIndex;
+      if (match[0].length === 0) regex.lastIndex++;
+    }
+
+    if (lastIndex < code.length) {
+      out += escapeHTML(code.slice(lastIndex));
+    }
+    return out + '\n';
+  }
+
+  function detectGrammarFromFilename(name) {
+    const ext = (name.split('.').pop() || '').toLowerCase();
+    const map = {
+      js: 'javascript', mjs: 'javascript', ts: 'javascript',
+      html: 'html', htm: 'html', xml: 'html', svg: 'html',
+      css: 'css', py: 'python', sh: 'python',
+      json: 'json', md: 'markdown', txt: 'plaintext'
+    };
+    return map[ext] || 'javascript';
+  }
+
+  /* =========================================================================
+   * 7. MONOLITH COLLAPSIBLE SECTION & FOLDING VAULT ENGINE
+   * ========================================================================= */
+  const FOLD_TOKEN_REGEX = /\/\* ⊞ FOLDED \[#(\d+)\] \((\d+) lines\) :: (.*?) \*\//;
+
+  function getUnfoldedContent(text, foldVault) {
+    if (!foldVault) return text;
+    let current = text;
+    let safety = 0;
+    while (FOLD_TOKEN_REGEX.test(current) && safety < 500) {
+      current = current.replace(FOLD_TOKEN_REGEX, (fullMatch, id) => {
+        return foldVault[id] !== undefined ? foldVault[id] : fullMatch;
+      });
+      safety++;
+    }
+    return current;
+  }
+
+  function computeFoldableBlocks(code) {
+    const lines = code.split('\n');
+    const foldMap = {};
+    const braceStack = [];
+    const regionStack = [];
+    const htmlStack = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+
+      const tokenMatch = line.match(FOLD_TOKEN_REGEX);
+      if (tokenMatch) {
+        foldMap[i] = {
+          startLine: i,
+          endLine: i,
+          isFolded: true,
+          foldId: tokenMatch[1],
+          lineCount: parseInt(tokenMatch[2], 10),
+          label: tokenMatch[3]
+        };
+        continue;
+      }
+
+      if (/^(\/\/|#|<!--)\s*#region\b/i.test(trimmed)) {
+        regionStack.push({ line: i, label: trimmed.replace(/^(\/\/|#|<!--)\s*#region\s*/i, '') || 'Region' });
+      } else if (/^(\/\/|#|<!--)\s*#endregion\b/i.test(trimmed)) {
+        if (regionStack.length > 0) {
+          const open = regionStack.pop();
+          if (i > open.line) {
+            foldMap[open.line] = {
+              startLine: open.line,
+              endLine: i,
+              isFolded: false,
+              label: `#region ${open.label}`
+            };
+          }
+        }
+      }
+
+      const htmlOpen = trimmed.match(/^<(script|style|head|body|section|main|header|footer|aside|div)\b[^>]*>/i);
+      const htmlClose = trimmed.match(/^<\/(script|style|head|body|section|main|header|footer|aside|div)>/i);
+      if (htmlOpen && !trimmed.includes(`</${htmlOpen[1]}`)) {
+        htmlStack.push({ tag: htmlOpen[1].toLowerCase(), line: i, preview: trimmed.slice(0, 42) });
+      } else if (htmlClose && htmlStack.length > 0) {
+        const closeTag = htmlClose[1].toLowerCase();
+        for (let s = htmlStack.length - 1; s >= 0; s--) {
+          if (htmlStack[s].tag === closeTag) {
+            const open = htmlStack.splice(s, 1)[0];
+            if (i > open.line && !foldMap[open.line]) {
+              foldMap[open.line] = {
+                startLine: open.line,
+                endLine: i,
+                isFolded: false,
+                label: open.preview
+              };
+            }
+            break;
+          }
+        }
+      }
+
+      const cleanLine = line.replace(/\/\/.*$/, '').replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, '""');
+      for (let c = 0; c < cleanLine.length; c++) {
+        const ch = cleanLine[c];
+        if (ch === '{' || ch === '[') {
+          braceStack.push({ ch, line: i, preview: trimmed.slice(0, 42) });
+        } else if (ch === '}' || ch === ']') {
+          const expected = ch === '}' ? '{' : '[';
+          if (braceStack.length > 0 && braceStack[braceStack.length - 1].ch === expected) {
+            const open = braceStack.pop();
+            if (i > open.line && !foldMap[open.line]) {
+              foldMap[open.line] = {
+                startLine: open.line,
+                endLine: i,
+                isFolded: false,
+                label: open.preview
+              };
+            }
+          }
+        }
+      }
+    }
+
+    return foldMap;
+  }
+
+  function toggleFoldAtLine(lineIndex) {
+    const tab = getActiveTab();
+    if (!tab) return;
+    if (!tab.foldVault) tab.foldVault = {};
+    if (!tab.nextFoldId) tab.nextFoldId = 1;
+
+    const lines = tab.content.split('\n');
+    const foldMap = computeFoldableBlocks(tab.content);
+    const block = foldMap[lineIndex];
+    if (!block) {
+      flashStatus(`NO COLLAPSIBLE BLOCK ON LINE ${lineIndex + 1}`);
+      return;
+    }
+
+    if (block.isFolded) {
+      const rawBlock = tab.foldVault[block.foldId];
+      if (rawBlock !== undefined) {
+        lines[lineIndex] = lines[lineIndex].replace(FOLD_TOKEN_REGEX, () => rawBlock);
+        delete tab.foldVault[block.foldId];
+        updateContent(lines.join('\n'));
+        flashStatus(`EXPANDED BLOCK [#${block.foldId}] (${block.lineCount} LINES)`);
+      }
+      return;
+    }
+
+    const startLine = block.startLine;
+    const endLine = block.endLine;
+    const count = (endLine - startLine) + 1;
+    const slice = lines.slice(startLine, endLine + 1).join('\n');
+    const indentMatch = lines[startLine].match(/^\s*/);
+    const indent = indentMatch ? indentMatch[0] : '';
+    const preview = block.label.replace(/\*\//g, '').replace(/\s+/g, ' ').trim().slice(0, 48);
+
+    const foldId = String(tab.nextFoldId++);
+    tab.foldVault[foldId] = slice;
+
+    const placeholder = `${indent}/* ⊞ FOLDED [#${foldId}] (${count} lines) :: ${preview} */`;
+    lines.splice(startLine, count, placeholder);
+
+    updateContent(lines.join('\n'));
+    flashStatus(`COLLAPSED ${count} LINES INTO BLOCK [#${foldId}]`);
+  }
+
+  /* =========================================================================
+   * 8. MONOLITH OUTLINE NAVIGATOR SCANNER
+   * ========================================================================= */
+  function renderOutline() {
+    const tab = getActiveTab();
+    const outlineList = document.getElementById('outlineList');
+    const outlineCount = document.getElementById('outlineCount');
+    if (!tab || !outlineList) return;
+
+    const lines = tab.content.split('\n');
+    const items = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+
+      const foldMatch = trimmed.match(FOLD_TOKEN_REGEX);
+      if (foldMatch) {
+        items.push({ line: i, label: `⊞ [${foldMatch[2]}L] ${foldMatch[3]}`, isBanner: true });
+        continue;
+      }
+
+      if (/^(\/\/|#|\/\*|<!--)\s*(\d+\.|#region\b|[A-Z0-9 _\-\/]{6,})/.test(trimmed) && !/^\/\/\s*=+$/.test(trimmed)) {
+        const cleanBanner = trimmed
+          .replace(/^(\/\/|#|\/\*+|<!--)\s*/, '')
+          .replace(/(\*+\/|-->)$/, '')
+          .trim();
+        if (cleanBanner.length >= 4 && !/^[-=*{]+$/.test(cleanBanner)) {
+          items.push({ line: i, label: `§ ${cleanBanner.slice(0, 32)}`, isBanner: true });
+          continue;
+        }
+      }
+
+      const classMatch = trimmed.match(/^(?:export\s+)?class\s+([a-zA-Z0-9_$]+)/);
+      if (classMatch) {
+        items.push({ line: i, label: `class ${classMatch[1]}`, isBanner: false });
+        continue;
+      }
+
+      const fnMatch = trimmed.match(/^(?:async\s+)?function\s+([a-zA-Z0-9_$]+)/);
+      if (fnMatch) {
+        items.push({ line: i, label: `fn ${fnMatch[1]}()`, isBanner: false });
+        continue;
+      }
+
+      const tagMatch = trimmed.match(/^<(script|style|body|head|main|section|aside)\b([^>]*)>/i);
+      if (tagMatch) {
+        const idMatch = tagMatch[2].match(/id=["']([^"']+)["']/);
+        const tagLabel = `<${tagMatch[1].toLowerCase()}${idMatch ? '#' + idMatch[1] : ''}>`;
+        items.push({ line: i, label: tagLabel, isBanner: true });
+      }
+    }
+
+    outlineCount.textContent = `${items.length} NODES`;
+    outlineList.innerHTML = '';
+
+    items.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'outline-item' + (item.isBanner ? ' section-banner' : '');
+      row.title = `Jump to Line ${item.line + 1}`;
+
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = item.label;
+      nameSpan.style.overflow = 'hidden';
+      nameSpan.style.textOverflow = 'ellipsis';
+
+      const lnSpan = document.createElement('span');
+      lnSpan.className = 'outline-ln';
+      lnSpan.textContent = `:${item.line + 1}`;
+
+      row.appendChild(nameSpan);
+      row.appendChild(lnSpan);
+
+      row.onclick = () => jumpToLine(item.line);
+      outlineList.appendChild(row);
+    });
+  }
+
+  function jumpToLine(lineIndex) {
+    const lines = inputLayer.value.split('\n');
+    let charPos = 0;
+    for (let i = 0; i < lineIndex && i < lines.length; i++) {
+      charPos += lines[i].length + 1;
+    }
+    const lineHeightPx = Math.round(currentFontSize * 1.55);
+    inputLayer.focus();
+    inputLayer.setSelectionRange(charPos, charPos + (lines[lineIndex]?.length || 0));
+    inputLayer.scrollTop = Math.max(0, (lineIndex - 3) * lineHeightPx);
+    syncScroll();
+    updateCursorStatus();
+    flashStatus(`JUMPED TO LINE ${lineIndex + 1}`);
+  }
+
+  /* =========================================================================
+   * 9. MULTI-TAB STATE & DEFAULT MONOLITH TEMPLATE
+   * ========================================================================= */
+  const STORAGE_KEY = 'NEXUS_EDITOR_VFS_TABS_V5';
+
+  const DEFAULT_TABS = [
+    {
+      id: 'tab-1',
+      name: 'monolith_synth.js',
+      grammar: 'javascript',
+      dirty: false,
+      cursor: 0,
+      scrollTop: 0,
+      scrollLeft: 0,
+      foldVault: {},
+      nextFoldId: 1,
+      undoStack: [],
+      redoStack: [],
+      content: `// ==========================================================
+// 1. NEXUS MONOLITH // FONT PICKER & CODE FOLDING DEMO
+// - File, Edit, and Theme menus are unlocked and unclipped!
+// - Click [▼] in the line gutter to fold any section!
+// ==========================================================
+
+// #region DSP_SATURATION_CORE
+class HarmonicTransformer {
+  constructor(sampleRate = 48000) {
+    this.sampleRate = sampleRate;
+    this.drive = 2.1;
+    this.hysteresis = 0.14;
+  }
+
+  processBlock(buffer) {
+    for (let i = 0; i < buffer.length; i++) {
+      const x = buffer[i] * this.drive;
+      buffer[i] = x / (1.0 + Math.abs(x));
+    }
+    return buffer;
+  }
+}
+// #endregion
+
+// ==========================================================
+// 2. STEP SEQUENCER CLOCK & TRIGGER MATRIX
+// ==========================================================
+function createStepClock(bpm = 90) {
+  const intervalMs = (60 / bpm / 4) * 1000;
+  return {
+    bpm,
+    intervalMs,
+    steps: [1, 0, 0, 0, 1, 0, 1, 0]
+  };
+}
+
+// ==========================================================
+// 3. MASTER BUS LIMITER
+// ==========================================================
+function engageMasterBus() {
+  const dsp = new HarmonicTransformer(48000);
+  const clock = createStepClock(90);
+  console.log("MONOLITH ONLINE // BPM:", clock.bpm);
+}`
+    },
+    {
+      id: 'tab-2',
+      name: 'monolith_app.html',
+      grammar: 'html',
+      dirty: false,
+      cursor: 0,
+      scrollTop: 0,
+      scrollLeft: 0,
+      foldVault: {},
+      nextFoldId: 1,
+      undoStack: [],
+      redoStack: [],
+      content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Monolith HTML5 Unit</title>
+  <style>
+    body {
+      background: #0b0c0e;
+      color: #ff5500;
+    }
+  </style>
+</head>
+<body>
+  <section id="rack-deck">
+    <h1>HARDWARE CHASSIS</h1>
+  </section>
+  <script>
+    function bootDeck() {
+      console.log("Deck Ready");
+    }
+  <\/script>
+</body>
+</html>`
+    }
+  ];
+
+  let tabs = [];
+  let activeTabId = null;
+
+  function getActiveTab() {
+    return tabs.find(t => t.id === activeTabId);
+  }
+
+  function flashStatus(msg) {
+    statusMsg.textContent = msg;
+  }
+
+  /* =========================================================================
+   * 10. RENDERING & INTERACTIVE FOLD GUTTER
+   * ========================================================================= */
+  function renderTabs() {
+    tabbar.innerHTML = '';
+    tabs.forEach(tab => {
+      const el = document.createElement('div');
+      el.className = 'tab' + (tab.id === activeTabId ? ' active' : '');
+
+      if (tab.dirty) {
+        const dot = document.createElement('span');
+        dot.className = 'tab-dirty';
+        el.appendChild(dot);
+      }
+
+      const label = document.createElement('span');
+      label.textContent = tab.name;
+      el.appendChild(label);
+
+      const closeBtn = document.createElement('span');
+      closeBtn.className = 'tab-close';
+      closeBtn.textContent = '×';
+      closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeTabById(tab.id);
+      };
+      el.appendChild(closeBtn);
+
+      el.onclick = () => switchTab(tab.id);
+      el.ondblclick = () => Commands.renameFile();
+      tabbar.appendChild(el);
+    });
+
+    const addBtn = document.createElement('div');
+    addBtn.className = 'tab-add';
+    addBtn.textContent = '+';
+    addBtn.title = 'New Tab (Alt+N)';
+    addBtn.onclick = () => Commands.newFile();
+    tabbar.appendChild(addBtn);
+  }
+
+  function renderEditor() {
+    const tab = getActiveTab();
+    if (!tab) return;
+
+    const code = tab.content;
+    highlightLayer.innerHTML = highlightSyntax(code, tab.grammar);
+
+    const lines = code.split('\n');
+    const lineCount = lines.length;
+    const foldMap = computeFoldableBlocks(code);
+
+    const frag = document.createDocumentFragment();
+    let activeFoldsCount = 0;
+
+    for (let i = 0; i < lineCount; i++) {
+      const row = document.createElement('div');
+      row.className = 'gutter-row';
+
+      const numSpan = document.createElement('span');
+      numSpan.className = 'ln-num';
+      numSpan.textContent = i + 1;
+      row.appendChild(numSpan);
+
+      const block = foldMap[i];
+      if (block) {
+        const btn = document.createElement('span');
+        btn.className = 'fold-btn' + (block.isFolded ? ' folded' : '');
+        btn.textContent = block.isFolded ? '▶' : '▼';
+        btn.title = block.isFolded
+          ? `Click to Expand (${block.lineCount} lines)`
+          : `Click to Collapse lines ${block.startLine + 1}..${block.endLine + 1}`;
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          toggleFoldAtLine(i);
+        };
+        row.appendChild(btn);
+        if (block.isFolded) activeFoldsCount++;
+      } else {
+        const spacer = document.createElement('span');
+        spacer.className = 'fold-spacer';
+        row.appendChild(spacer);
+      }
+
+      frag.appendChild(row);
+    }
+
+    gutter.innerHTML = '';
+    gutter.appendChild(frag);
+
+    const bytes = new Blob([code]).size;
+    statusFolds.textContent = `${activeFoldsCount} FOLDED`;
+    statusStats.textContent = `${lineCount} LINES // ${bytes} BYTES`;
+    statusGrammar.textContent = `GRAMMAR: ${tab.grammar.toUpperCase()}`;
+    grammarSelect.value = tab.grammar;
+
+    renderOutline();
+    if (typeof updatePageLines === 'function') {
+      // slight delay to ensure layout
+      requestAnimationFrame(updatePageLines);
+    }
+  }
+
+  function updateCursorStatus() {
+    const pos = inputLayer.selectionStart || 0;
+    const textUpToCursor = inputLayer.value.slice(0, pos);
+    const lines = textUpToCursor.split('\n');
+    const ln = lines.length;
+    const col = lines[lines.length - 1].length + 1;
+    statusCursor.textContent = `LN ${ln}, COL ${col}`;
+
+    const tab = getActiveTab();
+    if (tab) tab.cursor = pos;
+  }
+
+  function syncScroll() {
+    highlightLayer.scrollTop = inputLayer.scrollTop;
+    highlightLayer.scrollLeft = inputLayer.scrollLeft;
+    gutter.scrollTop = inputLayer.scrollTop;
+
+    const tab = getActiveTab();
+    if (tab) {
+      tab.scrollTop = inputLayer.scrollTop;
+      tab.scrollLeft = inputLayer.scrollLeft;
+    }
+    // update ruler horizontal position without full rebuild for performance
+    if (typeof pageLinesLayer !== 'undefined' && pageLinesLayer && typeof charWidth !== 'undefined') {
+      const scrollLeft = inputLayer.scrollLeft;
+      const baseLeft = 16;
+      const lines = pageLinesLayer.querySelectorAll('.page-line');
+      lines.forEach(el => {
+        const col = parseInt(el.dataset.col,10) || 80;
+        el.style.left = Math.round(baseLeft + charWidth * col - scrollLeft) + 'px';
+      });
+    }
+  }
+
+  function switchTab(id) {
+    const prev = getActiveTab();
+    if (prev) {
+      prev.scrollTop = inputLayer.scrollTop;
+      prev.scrollLeft = inputLayer.scrollLeft;
+      prev.cursor = inputLayer.selectionStart;
+    }
+
+    activeTabId = id;
+    const next = getActiveTab();
+    if (!next) return;
+
+    if (!next.foldVault) next.foldVault = {};
+    if (!next.nextFoldId) next.nextFoldId = 1;
+
+    inputLayer.value = next.content;
+    renderTabs();
+    renderEditor();
+
+    inputLayer.focus();
+    inputLayer.setSelectionRange(next.cursor || 0, next.cursor || 0);
+    inputLayer.scrollTop = next.scrollTop || 0;
+    inputLayer.scrollLeft = next.scrollLeft || 0;
+    syncScroll();
+    updateCursorStatus();
+    if (next.encoding && typeof applyEncoding === 'function') {
+      applyEncoding(next.encoding, false);
+    } else if (typeof applyEncoding === 'function') {
+      applyEncoding(currentEncoding, false);
+    }
+    if (typeof updatePageLines === 'function') {
+      // defer to ensure font metrics ready
+      setTimeout(updatePageLines, 30);
+    }
+  }
+
+  function pushUndoState(tab) {
+    if (!tab) return;
+    const last = tab.undoStack[tab.undoStack.length - 1];
+    if (!last || last.content !== tab.content) {
+      tab.undoStack.push({
+        content: tab.content,
+        foldVault: JSON.parse(JSON.stringify(tab.foldVault || {}))
+      });
+      if (tab.undoStack.length > 80) tab.undoStack.shift();
+      tab.redoStack = [];
+    }
+  }
+
+  function updateContent(newText, recordUndo = true) {
+    const tab = getActiveTab();
+    if (!tab) return;
+    if (recordUndo) pushUndoState(tab);
+
+    tab.content = newText;
+    tab.dirty = true;
+    inputLayer.value = newText;
+    renderTabs();
+    renderEditor();
+    updateCursorStatus();
+  }
+
+  /* =========================================================================
+   * 11. FILE, EDIT & FOLDING COMMAND CONTROLLER
+   * ========================================================================= */
+  const Commands = {
+    newFile() {
+      const idx = tabs.length + 1;
+      openInputModal({
+        title: 'NEW WORKSPACE TAB',
+        label: 'Enter filename (.js, .html, .css, .py, .json, .md):',
+        defaultValue: `unit_${idx}.js`,
+        confirmText: 'CREATE TAB',
+        onConfirm: (filename) => {
+          const grammar = detectGrammarFromFilename(filename);
+          const newTab = {
+            id: 'tab-' + Date.now(),
+            name: filename,
+            grammar,
+            dirty: true,
+            cursor: 0,
+            scrollTop: 0,
+            scrollLeft: 0,
+            foldVault: {},
+            nextFoldId: 1,
+            undoStack: [],
+            redoStack: [],
+            content: grammar === 'html'
+              ? `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title>${filename}</title>\n</head>\n<body>\n\n</body>\n</html>`
+              : `// ${filename}\n\n`
+          };
+          tabs.push(newTab);
+          switchTab(newTab.id);
+          flashStatus(`CREATED ${newTab.name}`);
+        }
+      });
+    },
+
+    openFile() {
+      diskFileInput.value = '';
+      diskFileInput.click();
+    },
+
+    openVfsDialog() {
+      modalTitle.textContent = 'BROWSER VFS SNAPSHOT MANAGER';
+      modalBody.innerHTML = '';
+      modalFooter.innerHTML = '';
+
+      const info = document.createElement('div');
+      info.textContent = 'Saved tabs in Browser LocalStorage VFS:';
+      modalBody.appendChild(info);
+
+      const list = document.createElement('div');
+      list.className = 'vfs-list';
+
+      let saved = [];
+      try {
+        saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      } catch (e) {
+        saved = [];
+      }
+
+      if (!Array.isArray(saved) || saved.length === 0) {
+        const empty = document.createElement('div');
+        empty.style.padding = '12px';
+        empty.style.color = 'var(--text-muted)';
+        empty.textContent = 'No VFS snapshot saved yet. Click "Save to Browser VFS" (Ctrl+S) to store current workspace.';
+        list.appendChild(empty);
+      } else {
+        saved.forEach((item) => {
+          const row = document.createElement('div');
+          row.className = 'vfs-row';
+          row.innerHTML = `<span>${escapeHTML(item.name)}</span><span style="color:var(--text-muted)">${(item.content || '').length} B</span>`;
+          row.onclick = () => {
+            const existing = tabs.find(t => t.name === item.name);
+            if (existing) {
+              existing.content = item.content;
+              switchTab(existing.id);
+            } else {
+              const restored = {
+                id: 'tab-' + Date.now(),
+                name: item.name,
+                grammar: item.grammar || detectGrammarFromFilename(item.name),
+                dirty: false,
+                cursor: 0,
+                scrollTop: 0,
+                scrollLeft: 0,
+                foldVault: {},
+                nextFoldId: 1,
+                undoStack: [],
+                redoStack: [],
+                content: item.content || ''
+              };
+              tabs.push(restored);
+              switchTab(restored.id);
+            }
+            closeModal();
+            flashStatus(`RESTORED ${item.name} FROM VFS`);
+          };
+          list.appendChild(row);
+        });
+      }
+
+      modalBody.appendChild(list);
+
+      const saveNowBtn = document.createElement('button');
+      saveNowBtn.className = 'hw-btn active';
+      saveNowBtn.textContent = 'SAVE WORKSPACE TO VFS NOW';
+      saveNowBtn.onclick = () => {
+        Commands.saveFile();
+        closeModal();
+      };
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'hw-btn';
+      closeBtn.textContent = 'CLOSE';
+      closeBtn.onclick = closeModal;
+
+      modalFooter.appendChild(closeBtn);
+      modalFooter.appendChild(saveNowBtn);
+      hwModal.classList.add('open');
+    },
+
+    saveFile() {
+      const tab = getActiveTab();
+      if (!tab) return;
+      tabs.forEach(t => { t.dirty = false; });
+      const serialized = JSON.stringify(tabs.map(t => ({
+        id: t.id,
+        name: t.name,
+        grammar: t.grammar,
+        dirty: false,
+        content: getUnfoldedContent(t.content, t.foldVault)
+      })));
+      localStorage.setItem(STORAGE_KEY, serialized);
+      renderTabs();
+      flashStatus(`SAVED ${tabs.length} TAB(S) TO BROWSER VFS`);
+    },
+
+    downloadFile() {
+      const tab = getActiveTab();
+      if (!tab) return;
+      const fullSource = getUnfoldedContent(tab.content, tab.foldVault);
+      const enc = (tab && tab.encoding) || currentEncoding || 'utf-8';
+      let blob;
+      try {
+        if (typeof encodeStringToBytes === 'function') {
+          const bytes = encodeStringToBytes(fullSource, enc);
+          blob = new Blob([bytes], { type: 'text/plain;charset=' + enc });
+        } else {
+          blob = new Blob([fullSource], { type: 'text/plain;charset=utf-8' });
+        }
+      } catch (e) {
+        blob = new Blob([fullSource], { type: 'text/plain;charset=utf-8' });
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = tab.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      tab.dirty = false;
+      renderTabs();
+      flashStatus(`EXPORTED ${tab.name} AS ${enc.toUpperCase()}`);
+    },
+
+    renameFile() {
+      const tab = getActiveTab();
+      if (!tab) return;
+      openInputModal({
+        title: 'RENAME ACTIVE TAB',
+        label: `Rename "${tab.name}" to:`,
+        defaultValue: tab.name,
+        confirmText: 'RENAME',
+        onConfirm: (nextName) => {
+          tab.name = nextName;
+          tab.grammar = detectGrammarFromFilename(tab.name);
+          tab.dirty = true;
+          renderTabs();
+          renderEditor();
+          flashStatus(`RENAMED TO ${tab.name}`);
+        }
+      });
+    },
+
+    closeTab() {
+      if (activeTabId) closeTabById(activeTabId);
+    },
+
+    closeAllTabs() {
+      openConfirmModal({
+        title: 'RESET WORKSPACE',
+        message: 'Reset all tabs to factory default monolith templates and clear VFS storage?',
+        confirmText: 'RESET WORKSPACE',
+        onConfirm: () => {
+          localStorage.removeItem(STORAGE_KEY);
+          tabs = JSON.parse(JSON.stringify(DEFAULT_TABS));
+          switchTab(tabs[0].id);
+          flashStatus('WORKSPACE RESET TO FACTORY DEFAULTS');
+        }
+      });
+    },
+
+    foldAtCursor() {
+      const pos = inputLayer.selectionStart || 0;
+      const currentLine = inputLayer.value.slice(0, pos).split('\n').length - 1;
+      const foldMap = computeFoldableBlocks(inputLayer.value);
+
+      if (foldMap[currentLine]) {
+        toggleFoldAtLine(currentLine);
+        return;
+      }
+
+      for (let ln = currentLine; ln >= 0; ln--) {
+        const b = foldMap[ln];
+        if (b && !b.isFolded && b.endLine >= currentLine) {
+          toggleFoldAtLine(ln);
+          return;
+        }
+      }
+      flashStatus('NO COLLAPSIBLE BLOCK FOUND AT CURSOR');
+    },
+
+    foldAllSections() {
+      const tab = getActiveTab();
+      if (!tab) return;
+      if (!tab.foldVault) tab.foldVault = {};
+      if (!tab.nextFoldId) tab.nextFoldId = 1;
+
+      const foldMap = computeFoldableBlocks(tab.content);
+      const starts = Object.keys(foldMap)
+        .map(Number)
+        .filter(ln => !foldMap[ln].isFolded && (foldMap[ln].endLine - foldMap[ln].startLine) >= 3)
+        .sort((a, b) => a - b);
+
+      const topLevel = [];
+      let lastEnd = -1;
+      for (const ln of starts) {
+        if (ln > lastEnd) {
+          topLevel.push(foldMap[ln]);
+          lastEnd = foldMap[ln].endLine;
+        }
+      }
+
+      if (topLevel.length === 0) {
+        flashStatus('NO MULTI-LINE BLOCKS TO FOLD');
+        return;
+      }
+
+      pushUndoState(tab);
+      const lines = tab.content.split('\n');
+      for (let i = topLevel.length - 1; i >= 0; i--) {
+        const b = topLevel[i];
+        const count = (b.endLine - b.startLine) + 1;
+        const slice = lines.slice(b.startLine, b.endLine + 1).join('\n');
+        const indentMatch = lines[b.startLine].match(/^\s*/);
+        const indent = indentMatch ? indentMatch[0] : '';
+        const preview = b.label.replace(/\*\//g, '').replace(/\s+/g, ' ').trim().slice(0, 48);
+        const foldId = String(tab.nextFoldId++);
+        tab.foldVault[foldId] = slice;
+        lines.splice(b.startLine, count, `${indent}/* ⊞ FOLDED [#${foldId}] (${count} lines) :: ${preview} */`);
+      }
+
+      updateContent(lines.join('\n'), false);
+      flashStatus(`COLLAPSED ${topLevel.length} TOP-LEVEL MONOLITH BLOCKS`);
+    },
+
+    unfoldAll() {
+      const tab = getActiveTab();
+      if (!tab) return;
+      const unfolded = getUnfoldedContent(tab.content, tab.foldVault);
+      if (unfolded !== tab.content) {
+        pushUndoState(tab);
+        tab.foldVault = {};
+        updateContent(unfolded, false);
+        flashStatus('EXPANDED ALL FOLDED BLOCKS');
+      } else {
+        flashStatus('ALL BLOCKS ALREADY EXPANDED');
+      }
+    },
+
+    wrapRegion() {
+      const start = inputLayer.selectionStart;
+      const end = inputLayer.selectionEnd;
+      const val = inputLayer.value;
+      openInputModal({
+        title: 'WRAP IN #REGION',
+        label: 'Collapsible Region Label:',
+        defaultValue: 'SUBSYSTEM_BLOCK',
+        confirmText: 'WRAP SELECTION',
+        onConfirm: (regionName) => {
+          const selected = start !== end ? val.slice(start, end) : '// code block here';
+          const wrapped = `// #region ${regionName}\n${selected}\n// #endregion`;
+          updateContent(val.slice(0, start) + wrapped + val.slice(end));
+          flashStatus(`WRAPPED SELECTION IN #region ${regionName}`);
+        }
+      });
+    },
+
+    undo() {
+      const tab = getActiveTab();
+      if (!tab || tab.undoStack.length === 0) return;
+      tab.redoStack.push({
+        content: tab.content,
+        foldVault: JSON.parse(JSON.stringify(tab.foldVault || {}))
+      });
+      const prev = tab.undoStack.pop();
+      tab.foldVault = prev.foldVault || {};
+      updateContent(prev.content, false);
+      flashStatus('UNDO');
+    },
+
+    redo() {
+      const tab = getActiveTab();
+      if (!tab || tab.redoStack.length === 0) return;
+      tab.undoStack.push({
+        content: tab.content,
+        foldVault: JSON.parse(JSON.stringify(tab.foldVault || {}))
+      });
+      const next = tab.redoStack.pop();
+      tab.foldVault = next.foldVault || {};
+      updateContent(next.content, false);
+      flashStatus('REDO');
+    },
+
+    cutLine() {
+      const start = inputLayer.selectionStart;
+      const end = inputLayer.selectionEnd;
+      const val = inputLayer.value;
+
+      if (start !== end) {
+        navigator.clipboard?.writeText(val.slice(start, end)).catch(() => {});
+        updateContent(val.slice(0, start) + val.slice(end));
+        inputLayer.setSelectionRange(start, start);
+      } else {
+        const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+        let lineEnd = val.indexOf('\n', start);
+        if (lineEnd === -1) lineEnd = val.length;
+        else lineEnd += 1;
+        navigator.clipboard?.writeText(val.slice(lineStart, lineEnd)).catch(() => {});
+        updateContent(val.slice(0, lineStart) + val.slice(lineEnd));
+        inputLayer.setSelectionRange(lineStart, lineStart);
+      }
+      flashStatus('CUT TO CLIPBOARD');
+    },
+
+    copySelection() {
+      const start = inputLayer.selectionStart;
+      const end = inputLayer.selectionEnd;
+      if (start !== end) {
+        navigator.clipboard?.writeText(inputLayer.value.slice(start, end)).catch(() => {});
+        flashStatus('COPIED SELECTION');
+      }
+    },
+
+    async pasteClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          const start = inputLayer.selectionStart;
+          const end = inputLayer.selectionEnd;
+          const val = inputLayer.value;
+          updateContent(val.slice(0, start) + text + val.slice(end));
+          const pos = start + text.length;
+          inputLayer.setSelectionRange(pos, pos);
+          flashStatus('PASTED CLIPBOARD');
+        }
+      } catch (err) {
+        flashStatus('USE CTRL+V DIRECTLY IN EDITOR');
+        inputLayer.focus();
+      }
+    },
+
+    duplicateLine() {
+      const start = inputLayer.selectionStart;
+      const val = inputLayer.value;
+      const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+      let lineEnd = val.indexOf('\n', start);
+      if (lineEnd === -1) lineEnd = val.length;
+      const lineContent = val.slice(lineStart, lineEnd);
+      updateContent(val.slice(0, lineEnd) + '\n' + lineContent + val.slice(lineEnd));
+      const newCursor = start + lineContent.length + 1;
+      inputLayer.setSelectionRange(newCursor, newCursor);
+      flashStatus('DUPLICATED LINE');
+    },
+
+    toggleComment() {
+      const tab = getActiveTab();
+      if (!tab) return;
+      const prefix = (GRAMMARS[tab.grammar]?.commentPrefix) || '// ';
+      const start = inputLayer.selectionStart;
+      const val = inputLayer.value;
+      const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+      let lineEnd = val.indexOf('\n', start);
+      if (lineEnd === -1) lineEnd = val.length;
+
+      const line = val.slice(lineStart, lineEnd);
+      let updatedLine;
+      let delta = 0;
+
+      if (line.trimStart().startsWith(prefix.trim())) {
+        const idx = line.indexOf(prefix.trim());
+        const removeLen = line.slice(idx).startsWith(prefix) ? prefix.length : prefix.trim().length;
+        updatedLine = line.slice(0, idx) + line.slice(idx + removeLen);
+        delta = -removeLen;
+      } else {
+        updatedLine = prefix + line;
+        delta = prefix.length;
+      }
+
+      updateContent(val.slice(0, lineStart) + updatedLine + val.slice(lineEnd));
+      const nextCursor = Math.max(lineStart, start + delta);
+      inputLayer.setSelectionRange(nextCursor, nextCursor);
+      flashStatus('TOGGLED LINE COMMENT');
+    },
+
+    toUpper() {
+      const start = inputLayer.selectionStart;
+      const end = inputLayer.selectionEnd;
+      const val = inputLayer.value;
+      if (start !== end) {
+        const upper = val.slice(start, end).toUpperCase();
+        updateContent(val.slice(0, start) + upper + val.slice(end));
+        inputLayer.setSelectionRange(start, end);
+        flashStatus('TRANSFORMED SELECTION TO ALL CAPS');
+      } else {
+        const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+        let lineEnd = val.indexOf('\n', start);
+        if (lineEnd === -1) lineEnd = val.length;
+        const upperLine = val.slice(lineStart, lineEnd).toUpperCase();
+        updateContent(val.slice(0, lineStart) + upperLine + val.slice(lineEnd));
+        inputLayer.setSelectionRange(start, start);
+        flashStatus('TRANSFORMED ACTIVE LINE TO ALL CAPS');
+      }
+      inputLayer.focus();
+    },
+
+    toLower() {
+      const start = inputLayer.selectionStart;
+      const end = inputLayer.selectionEnd;
+      const val = inputLayer.value;
+      if (start !== end) {
+        const lower = val.slice(start, end).toLowerCase();
+        updateContent(val.slice(0, start) + lower + val.slice(end));
+        inputLayer.setSelectionRange(start, end);
+        flashStatus('TRANSFORMED SELECTION TO LOWERCASE');
+      } else {
+        const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+        let lineEnd = val.indexOf('\n', start);
+        if (lineEnd === -1) lineEnd = val.length;
+        const lowerLine = val.slice(lineStart, lineEnd).toLowerCase();
+        updateContent(val.slice(0, lineStart) + lowerLine + val.slice(lineEnd));
+        inputLayer.setSelectionRange(start, start);
+        flashStatus('TRANSFORMED ACTIVE LINE TO LOWERCASE');
+      }
+      inputLayer.focus();
+    },
+
+    findReplace() {
+      findBar.classList.toggle('open');
+      if (findBar.classList.contains('open')) {
+        const sel = inputLayer.value.slice(inputLayer.selectionStart, inputLayer.selectionEnd);
+        if (sel) findInput.value = sel;
+        findInput.focus();
+      } else {
+        inputLayer.focus();
+      }
+    },
+
+    selectAll() {
+      inputLayer.focus();
+      inputLayer.select();
+    },
+
+    toggleThemeStudio() {
+      themeDrawer.classList.toggle('open');
+    }
+  };
+
+  function closeTabById(id) {
+    const idx = tabs.findIndex(t => t.id === id);
+    if (idx === -1) return;
+    tabs.splice(idx, 1);
+
+    if (tabs.length === 0) {
+      const fallback = {
+        id: 'tab-' + Date.now(),
+        name: 'unit_1.js',
+        grammar: 'javascript',
+        dirty: false,
+        cursor: 0,
+        scrollTop: 0,
+        scrollLeft: 0,
+        foldVault: {},
+        nextFoldId: 1,
+        undoStack: [],
+        redoStack: [],
+        content: '// unit_1.js\n\n'
+      };
+      tabs.push(fallback);
+      switchTab(fallback.id);
+      return;
+    }
+
+    if (activeTabId === id) {
+      const nextTab = tabs[Math.max(0, idx - 1)];
+      switchTab(nextTab.id);
+    } else {
+      renderTabs();
+    }
+  }
+
+  /* =========================================================================
+   * 12. EVENT LISTENERS & HOTKEYS
+   * ========================================================================= */
+  document.getElementById('btnFoldAll').onclick = () => Commands.foldAllSections();
+  document.getElementById('btnUnfoldAll').onclick = () => Commands.unfoldAll();
+  document.getElementById('btnSideFoldAll').onclick = () => Commands.foldAllSections();
+  document.getElementById('btnSideUnfoldAll').onclick = () => Commands.unfoldAll();
+  document.getElementById('btnSideWrapRegion').onclick = () => Commands.wrapRegion();
+
+  fontFamilySelect.addEventListener('change', () => {
+    const selected = fontFamilySelect.value;
+    applyFontFamily(selected);
+    flashStatus(`FONT CHANGED TO ${selected.toUpperCase()}`);
+  });
+
+  btnFontBold.addEventListener('click', () => {
+    applyFontWeight(!isFontBold);
+    flashStatus(`FONT WEIGHT: ${isFontBold ? 'BOLD (700)' : 'NORMAL (400)'}`);
+  });
+
+  const btnToggleOutline = document.getElementById('btnToggleOutline');
+  btnToggleOutline.onclick = () => {
+    outlineSidebar.classList.toggle('closed');
+    btnToggleOutline.classList.toggle('active', !outlineSidebar.classList.contains('closed'));
+  };
+
+  document.getElementById('btnFontMinus').onclick = () => {
+    applyFontSize(currentFontSize - 1);
+    flashStatus(`FONT SIZE: ${currentFontSize}PX`);
+  };
+
+  document.getElementById('btnFontPlus').onclick = () => {
+    applyFontSize(currentFontSize + 1);
+    flashStatus(`FONT SIZE: ${currentFontSize}PX`);
+  };
+
+  document.getElementById('btnThemeStudio').onclick = () => Commands.toggleThemeStudio();
+  document.getElementById('btnCloseTheme').onclick = () => themeDrawer.classList.remove('open');
+  document.getElementById('btnResetTheme').onclick = () => {
+    applyThemeObject(THEME_PRESETS.nexusOrange, true);
+    flashStatus('THEME RESET TO NEXUS INDUSTRIAL ORANGE');
+  };
+
+  document.querySelectorAll('[data-preset-btn], [data-preset]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const presetKey = btn.dataset.presetBtn || btn.dataset.preset;
+      if (THEME_PRESETS[presetKey]) {
+        applyThemeObject(THEME_PRESETS[presetKey], true);
+        flashStatus(`APPLIED PRESET: ${presetKey.toUpperCase()}`);
+      }
+      document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('open'));
+    });
+  });
+
+  inputLayer.addEventListener('input', () => {
+    const tab = getActiveTab();
+    if (!tab) return;
+    pushUndoState(tab);
+    tab.content = inputLayer.value;
+    tab.dirty = true;
+    renderTabs();
+    renderEditor();
+    updateCursorStatus();
+  });
+
+  inputLayer.addEventListener('dblclick', () => {
+    const pos = inputLayer.selectionStart || 0;
+    const currentLine = inputLayer.value.slice(0, pos).split('\n').length - 1;
+    const lines = inputLayer.value.split('\n');
+    if (lines[currentLine] && FOLD_TOKEN_REGEX.test(lines[currentLine])) {
+      toggleFoldAtLine(currentLine);
+    }
+  });
+
+  inputLayer.addEventListener('scroll', syncScroll);
+  inputLayer.addEventListener('click', updateCursorStatus);
+  inputLayer.addEventListener('keyup', updateCursorStatus);
+
+  inputLayer.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = inputLayer.selectionStart;
+      const end = inputLayer.selectionEnd;
+      const val = inputLayer.value;
+      updateContent(val.substring(0, start) + '  ' + val.substring(end));
+      inputLayer.selectionStart = inputLayer.selectionEnd = start + 2;
+      updateCursorStatus();
+    } else if (e.key === 'Enter') {
+      const start = inputLayer.selectionStart;
+      const val = inputLayer.value;
+      const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+      const currentLine = val.slice(lineStart, start);
+      const indentMatch = currentLine.match(/^\s+/);
+      const indent = indentMatch ? indentMatch[0] : '';
+      const extraIndent = /[{[(]\s*$/.test(currentLine) ? '  ' : '';
+
+      if (indent || extraIndent) {
+        e.preventDefault();
+        const insertStr = '\n' + indent + extraIndent;
+        updateContent(val.slice(0, start) + insertStr + val.slice(inputLayer.selectionEnd));
+        const newPos = start + insertStr.length;
+        inputLayer.setSelectionRange(newPos, newPos);
+        syncScroll();
+      }
+    }
+  });
+
+  // Global Hotkeys
+  window.addEventListener('keydown', (e) => {
+    if (hwModal.classList.contains('open')) return;
+    const ctrl = e.ctrlKey || e.metaKey;
+    const key = e.key.toLowerCase();
+
+    if (ctrl && key === 's') {
+      e.preventDefault();
+      if (e.shiftKey) Commands.downloadFile();
+      else Commands.saveFile();
+    } else if (ctrl && key === 'o') {
+      e.preventDefault();
+      Commands.openFile();
+    } else if (e.altKey && key === 'o') {
+      e.preventDefault();
+      Commands.openVfsDialog();
+    } else if (e.altKey && e.shiftKey && key === 'f') {
+      e.preventDefault();
+      Commands.foldAllSections();
+    } else if (e.altKey && key === 'f') {
+      e.preventDefault();
+      Commands.foldAtCursor();
+    } else if (e.altKey && key === 'u') {
+      e.preventDefault();
+      Commands.unfoldAll();
+    } else if (e.altKey && key === 'r') {
+      e.preventDefault();
+      Commands.wrapRegion();
+    } else if (ctrl && e.shiftKey && key === 'u') {
+      e.preventDefault();
+      Commands.toUpper();
+    } else if (ctrl && e.shiftKey && key === 'l') {
+      e.preventDefault();
+      Commands.toLower();
+    } else if (ctrl && (e.key === '=' || e.key === '+')) {
+      e.preventDefault();
+      applyFontSize(currentFontSize + 1);
+      flashStatus(`FONT SIZE: ${currentFontSize}PX`);
+    } else if (ctrl && e.key === '-') {
+      e.preventDefault();
+      applyFontSize(currentFontSize - 1);
+      flashStatus(`FONT SIZE: ${currentFontSize}PX`);
+    } else if (ctrl && key === 'v') {
+      flashStatus('PASTE BUFFER ACCESSED');
+    } else if (ctrl && key === 'c') {
+      Commands.copySelection();
+    } else if (ctrl && key === 'x') {
+      e.preventDefault();
+      Commands.cutLine();
+    } else if (ctrl && key === 'z') {
+      e.preventDefault();
+      Commands.undo();
+    } else if (ctrl && key === 'y') {
+      e.preventDefault();
+      Commands.redo();
+    } else if (ctrl && key === 'd') {
+      e.preventDefault();
+      Commands.duplicateLine();
+    } else if (ctrl && key === '/') {
+      e.preventDefault();
+      Commands.toggleComment();
+    } else if (ctrl && key === 'f') {
+      e.preventDefault();
+      Commands.findReplace();
+    } else if (e.altKey && key === 'n') {
+      e.preventDefault();
+      Commands.newFile();
+    } else if (e.altKey && key === 'w') {
+      e.preventDefault();
+      Commands.closeTab();
+    } else if (e.key === 'F2') {
+      e.preventDefault();
+      Commands.renameFile();
+    }
+  });
+
+  // Top Menu Dropdowns (Click to toggle + hover-switch when open)
+  const menuItems = document.querySelectorAll('.menu-item');
+  menuItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.dropdown-action')) return;
+      e.stopPropagation();
+      const isOpen = item.classList.contains('open');
+      menuItems.forEach(m => m.classList.remove('open'));
+      if (!isOpen) item.classList.add('open');
+    });
+
+    item.addEventListener('mouseenter', () => {
+      const anyOpen = Array.from(menuItems).some(m => m.classList.contains('open'));
+      if (anyOpen) {
+        menuItems.forEach(m => m.classList.remove('open'));
+        item.classList.add('open');
+      }
+    });
+  });
+
+  document.querySelectorAll('.dropdown-action[data-cmd]').forEach(action => {
+    action.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cmd = action.getAttribute('data-cmd');
+      menuItems.forEach(m => m.classList.remove('open'));
+      if (Commands[cmd]) Commands[cmd]();
+    });
+  });
+
+  window.addEventListener('click', () => {
+    menuItems.forEach(m => m.classList.remove('open'));
+  });
+
+  grammarSelect.addEventListener('change', () => {
+    const tab = getActiveTab();
+    if (!tab) return;
+    tab.grammar = grammarSelect.value;
+    renderEditor();
+    flashStatus(`GRAMMAR SWITCHED TO ${tab.grammar.toUpperCase()}`);
+  });
+
+  // Encoding selector
+  if (encodingSelect) {
+    encodingSelect.addEventListener('change', () => {
+      const sel = encodingSelect.value;
+      applyEncoding(sel, true);
+      const tab = getActiveTab();
+      if (tab) tab.encoding = normalizeEncodingLabel(sel);
+      flashStatus(`ENCODING SET TO ${sel.toUpperCase()}`);
+    });
+  }
+
+  // Ruler controls
+  if (rulerColSelect) {
+    rulerColSelect.addEventListener('change', () => {
+      const val = rulerColSelect.value;
+      if (val === 'custom') {
+        if (rulerCustomInput) {
+          rulerCustomInput.style.display = '';
+          rulerCustomInput.focus();
+        }
+        return;
+      }
+      if (rulerCustomInput) rulerCustomInput.style.display = 'none';
+      applyRulerSettings(val, true, true);
+      flashStatus(`RULER SET TO ${val || 'OFF'}`);
+    });
+  }
+  if (rulerCustomInput) {
+    rulerCustomInput.addEventListener('change', () => {
+      const v = rulerCustomInput.value.trim();
+      if (!v) return;
+      const n = parseInt(v,10);
+      if (isNaN(n) || n<1) return;
+      rulerCols = [n];
+      rulerColSelect.value = 'custom';
+      applyRulerSettings(String(n), true, true);
+      flashStatus(`RULER CUSTOM: ${n}`);
+    });
+    rulerCustomInput.addEventListener('keydown', (e)=>{
+      if (e.key==='Enter') {
+        e.preventDefault();
+        rulerCustomInput.dispatchEvent(new Event('change'));
+      }
+    });
+  }
+  if (btnToggleRuler) {
+    btnToggleRuler.addEventListener('click', () => {
+      toggleRuler();
+    });
+  }
+
+  // Window resize recalc ruler
+  window.addEventListener('resize', () => {
+    if (typeof updatePageLines === 'function') updatePageLines();
+  });
+
+  diskFileInput.addEventListener('change', (e) => {
+    const files = Array.from(e.target.files || []);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const buffer = ev.target.result;
+        let decoded = { text: '', detected: currentEncoding };
+        try {
+          if (typeof decodeBuffer === 'function') {
+            decoded = decodeBuffer(buffer, currentEncoding);
+          } else {
+            decoded.text = new TextDecoder().decode(buffer);
+          }
+        } catch (err) {
+          decoded.text = String(buffer||'');
+        }
+        const content = decoded.text;
+        const detectedEnc = decoded.detected || currentEncoding;
+        const newTab = {
+          id: 'tab-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+          name: file.name,
+          grammar: detectGrammarFromFilename(file.name),
+          encoding: normalizeEncodingLabel ? normalizeEncodingLabel(detectedEnc) : detectedEnc,
+          dirty: false,
+          cursor: 0,
+          scrollTop: 0,
+          scrollLeft: 0,
+          foldVault: {},
+          nextFoldId: 1,
+          undoStack: [],
+          redoStack: [],
+          content
+        };
+        tabs.push(newTab);
+        switchTab(newTab.id);
+        if (typeof applyEncoding === 'function' && newTab.encoding) {
+          applyEncoding(newTab.encoding, true);
+        }
+        flashStatus(`LOADED ${file.name} [${String(detectedEnc).toUpperCase()}] ${content.length} CHARS`);
+      };
+      reader.readAsArrayBuffer(file);
+    });
+    diskFileInput.value = '';
+  });
+
+  // Find & Replace Drawer Actions
+  document.getElementById('btnFindNext').onclick = () => {
+    const needle = findInput.value;
+    if (!needle) return;
+    const text = inputLayer.value;
+    let idx = text.indexOf(needle, inputLayer.selectionEnd);
+    if (idx === -1) idx = text.indexOf(needle, 0);
+    if (idx !== -1) {
+      inputLayer.focus();
+      inputLayer.setSelectionRange(idx, idx + needle.length);
+      updateCursorStatus();
+      flashStatus(`FOUND "${needle}" AT INDEX ${idx}`);
+    } else {
+      flashStatus(`NO MATCH FOR "${needle}"`);
+    }
+  };
+
+  document.getElementById('btnReplaceOne').onclick = () => {
+    const needle = findInput.value;
+    const rep = replaceInput.value;
+    if (!needle) return;
+    const start = inputLayer.selectionStart;
+    const end = inputLayer.selectionEnd;
+    const val = inputLayer.value;
+    if (val.slice(start, end) === needle) {
+      updateContent(val.slice(0, start) + rep + val.slice(end));
+      inputLayer.setSelectionRange(start, start + rep.length);
+      flashStatus('REPLACED OCCURRENCE');
+    } else {
+      document.getElementById('btnFindNext').click();
+    }
+  };
+
+  document.getElementById('btnReplaceAll').onclick = () => {
+    const needle = findInput.value;
+    const rep = replaceInput.value;
+    if (!needle) return;
+    const parts = inputLayer.value.split(needle);
+    const count = parts.length - 1;
+    if (count > 0) {
+      updateContent(parts.join(rep));
+      flashStatus(`REPLACED ${count} OCCURRENCES`);
+    } else {
+      flashStatus(`NO MATCH FOR "${needle}"`);
+    }
+  };
+
+  document.getElementById('btnUpperSelection').onclick = () => Commands.toUpper();
+  document.getElementById('btnLowerSelection').onclick = () => Commands.toLower();
+  document.getElementById('btnCloseFind').onclick = () => {
+    findBar.classList.remove('open');
+    inputLayer.focus();
+  };
+
+  /* =========================================================================
+   * 13. BOOTSTRAP WORKSPACE
+   * ========================================================================= */
+  function initWorkspace() {
+    buildColorPickerGrid();
+
+    try {
+      const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+      if (savedTheme) {
+        applyThemeObject(JSON.parse(savedTheme), false);
+      } else {
+        applyThemeObject(THEME_PRESETS.nexusOrange, false);
+      }
+    } catch (e) {
+      applyThemeObject(THEME_PRESETS.nexusOrange, false);
+    }
+
+    try {
+      const savedFam = localStorage.getItem(FONT_FAMILY_STORAGE_KEY);
+      if (savedFam) {
+        const parsedFam = JSON.parse(savedFam);
+        applyFontFamily(parsedFam.key || 'jetbrains', parsedFam.custom || null);
+      } else {
+        applyFontFamily('jetbrains');
+      }
+    } catch (e) {
+      applyFontFamily('jetbrains');
+    }
+
+    const savedWeight = localStorage.getItem(FONT_WEIGHT_STORAGE_KEY);
+    applyFontWeight(savedWeight === '1');
+
+    const savedFont = parseInt(localStorage.getItem(FONT_STORAGE_KEY), 10);
+    if (!isNaN(savedFont)) {
+      applyFontSize(savedFont);
+    } else {
+      applyFontSize(14);
+    }
+
+    // Init encoding & ruler UI from storage
+    try {
+      if (typeof currentEncoding !== 'undefined' && typeof applyEncoding === 'function') {
+        applyEncoding(currentEncoding, false);
+      }
+      if (typeof rulerCols !== 'undefined' && typeof applyRulerSettings === 'function') {
+        const colStr = (rulerCols && rulerCols.length) ? rulerCols.join(',') : '80';
+        applyRulerSettings(colStr, rulerEnabled, false);
+        // sync select UI
+        if (rulerColSelect) {
+          const hasOpt = Array.from(rulerColSelect.options).some(o=>o.value===colStr);
+          if (hasOpt) rulerColSelect.value = colStr;
+          else if (rulerCols.length===1) {
+            rulerColSelect.value = '80'; // fallback, custom will be handled
+            // if not standard, show custom
+            const standard = ['0','80','100','120','80,100','80,120','100,120'];
+            if (!standard.includes(colStr)) {
+              rulerColSelect.value = 'custom';
+              if (rulerCustomInput) {
+                rulerCustomInput.style.display = '';
+                rulerCustomInput.value = String(rulerCols[0]);
+              }
+            }
+          }
+        }
+      }
+    } catch(e){ console.warn('enc/ruler init', e); }
+
+    try {
+      const savedTabs = localStorage.getItem(STORAGE_KEY);
+      if (savedTabs) {
+        const parsed = JSON.parse(savedTabs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          tabs = parsed.map(t => ({
+            ...t,
+            cursor: 0,
+            scrollTop: 0,
+            scrollLeft: 0,
+            foldVault: {},
+            nextFoldId: 1,
+            undoStack: [],
+            redoStack: []
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn('VFS load fallback:', err);
+    }
+
+    if (tabs.length === 0) {
+      tabs = JSON.parse(JSON.stringify(DEFAULT_TABS));
+    }
+
+    switchTab(tabs[0].id);
+  }
+
+  initWorkspace();
+})();
+</script>
+</body>
+</html>
